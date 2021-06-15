@@ -45,6 +45,7 @@
 #include "lwip/ip_addr.h"
 #include "lwip/api.h"
 #include "lwip/dns.h"
+#include "lwip/sockets.h"
 
 #include <string.h> /* memset */
 #include <stdlib.h> /* atoi */
@@ -431,7 +432,7 @@ getnameinfo(const struct sockaddr *sa, socklen_t salen, char *node,
 
     /* FIXME: This return just the address value. Try resolving instead. */
     if (node != NULL && nodelen > 0) {
-        if (inet_ntop(af, &sa_in->sin_addr, node, nodelen) == NULL) {
+        if (lwip_inet_ntop(af, &sa_in->sin_addr, node, nodelen) == NULL) {
             return EAI_FAIL;
         }
     }   

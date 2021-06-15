@@ -3274,6 +3274,14 @@ lwip_setsockopt(int s, int level, int optname, const void *optval, socklen_t opt
   return err ? -1 : 0;
 }
 
+/*
+int
+setsockopt(int s, int level, int optname, const void *optval, socklen_t optlen)
+{
+    return lwip_setsockopt(s, level, optname, optval, optlen);
+}
+*/
+
 #if !LWIP_TCPIP_CORE_LOCKING
 /** lwip_setsockopt_callback: only used without CORE_LOCKING
  * to get into the tcpip_thread

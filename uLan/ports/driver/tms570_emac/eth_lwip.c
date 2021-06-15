@@ -39,7 +39,7 @@
 #include "netif/etharp.h" /* includes - lwip/ip.h, lwip/netif.h, lwip/ip_addr.h, lwip/pbuf.h */
 #include "eth_lwip_default.h"
 #include "eth_lwip.h"
-#include "tms570_netif.h"
+#include "beaglebone.h"
 #include <stdio.h>
 
 /* The lwIP network interface structure for the Ethernet EMAC. */

@@ -32,6 +32,7 @@
 *
 */
 
+#if 0
 #ifndef __MDIO_H__
 #define __MDIO_H__
 
@@ -163,3 +164,4 @@ MDIOInit(volatile tms570_mdio_t *baseAddr, uint32_t mdioInputFreq,
 }
 #endif
 #endif /* __MDIO_H__ */
+#endif /* 0 */

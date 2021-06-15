@@ -923,6 +923,10 @@
 #define LWIP_DHCP                       0
 #endif /* !LWIP_IPV4 */
 
+#ifndef LWIP_DHCP_TIMEOUT
+#define LWIP_DHCP_TIMEOUT               100
+#endif
+
 /**
  * DHCP_DOES_ARP_CHECK==1: Do an ARP check on the offered address.
  */

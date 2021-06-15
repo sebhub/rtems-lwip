@@ -263,10 +263,14 @@
  * LWIP_COMPAT_SOCKETS==1: Enable BSD-style sockets functions names.
  * (only used if you use sockets.c)
  */
-#define LWIP_COMPAT_SOCKETS            0
+#define LWIP_COMPAT_SOCKETS            1
 
  #define LWIP_TIMEVAL_PRIVATE 0
 
  #define LWIP_RAW                        0
+
+#define tskIDLE_PRIORITY RTEMS_MAXIMUM_PRIORITY
+#define portTICK_RATE_MS (rtems_clock_get_ticks_per_second() * 1000)
+#define vTaskDelay(x) sys_arch_delay(x)
 
 #endif /* __LWIPOPTS_H__ */

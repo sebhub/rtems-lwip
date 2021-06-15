@@ -1,6 +1,12 @@
 /*
- * Copyright (c) 2013, 2015 Czech Technical University in Prague
- * Czech Republic
+ * locator.h
+ *
+ * declarations for locator services for ethernet. 
+ *
+*/
+/*
+ * Copyright (c) 2001-2004 Swedish Institute of Computer Science.
+ * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
  * are permitted provided that the following conditions are met:
@@ -24,37 +30,21 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * Author: Premysl Houdek <houdepre@fel.cvut.cz>
- * Mentor: Pavel Pisa <pisa@cmp.felk.cvut.cz>
- * Industrial Informatics Group, FEE, Czech Technical University in Prague
+ * This file is part of the lwIP TCP/IP stack.
  *
- * Based on work of Carlos Jenkins, Rostislav Lisovy, Jan Dolezal
+ * Author: Adam Dunkels <adam@sics.se>
+ *
+*/
+
+/* Copyright (C) 2010 Texas Instruments Incorporated - http://www.ti.com/
+ * ALL RIGHTS RESERVED
  */
+#ifndef __LOCATOR_H__
+#define __LOCATOR_H__
 
-#ifndef __TMS570_NETIF_H
-#define __TMS570_NETIF_H
+/******************************************************************************
+**                      EXTERNAL FUNCTION PROTOTYPES
+*******************************************************************************/
+extern void LocatorConfig(unsigned char *macArray, const char *appTitle);
 
-//#define TMS570_NETIF_DEBUG 1
-
-#ifdef TMS570_NETIF_DEBUG
-#define tms570_eth_debug_printf sys_arch_printk
-#else
-#define tms570_eth_debug_printf(...)
-#endif
-
-err_t tms570_eth_init_netif(struct netif *netif);
-struct tms570_netif_state *tms570_eth_init_state();
-
-#if TMS570_NETIF_DEBUG
-struct emac_rx_bd;
-int tms570_eth_debug_get_BD_num(volatile void *ptr, struct tms570_netif_state *nf_state);
-void tms570_eth_debug_print_rxch(struct tms570_netif_state *nf_state);
-void tms570_eth_debug_print_txch(struct tms570_netif_state *nf_state);
-void tms570_eth_debug_show_BD_chain(volatile struct emac_rx_bd *curr_bd, struct tms570_netif_state *nf_state);
-void tms570_eth_debug_show_rx(struct tms570_netif_state *nf_state);
-void tms570_eth_debug_show_tx(struct tms570_netif_state *nf_state);
-void tms570_eth_debug_print_HDP(struct tms570_netif_state *nf_state);
-void tms570_eth_debug_print_info(struct netif *netif);
-#endif /* TMS570_NETIF_DEBUG */
-
-#endif /* __TMS570_NETIF_H */
+#endif // __LOCATOR_H__

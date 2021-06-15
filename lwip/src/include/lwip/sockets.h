@@ -48,6 +48,7 @@
 #include "lwip/err.h"
 #include "lwip/inet.h"
 #include "lwip/errno.h"
+#include <sys/socket.h>
 
 #include <string.h>
 
@@ -89,6 +90,7 @@ struct sockaddr_in6 {
 };
 #endif /* LWIP_IPV6 */
 
+#ifndef __rtems__
 struct sockaddr {
   u8_t        sa_len;
   sa_family_t sa_family;
@@ -104,6 +106,7 @@ struct sockaddr_storage {
   u32_t       s2_data3[3];
 #endif /* LWIP_IPV6 */
 };
+#endif /* __rtems__ */
 
 /* If your port already typedef's socklen_t, define SOCKLEN_T_DEFINED
    to prevent this code from redefining it. */
@@ -124,6 +127,7 @@ struct iovec {
 };
 #endif
 
+#ifndef __rtems__
 struct msghdr {
   void         *msg_name;
   socklen_t     msg_namelen;
@@ -144,6 +148,7 @@ struct cmsghdr {
   int        cmsg_level; /* originating protocol */
   int        cmsg_type;  /* protocol-specific type */
 };
+#endif /* __rtems__ */
 /* Data section follows header and possible padding, typically referred to as
       unsigned char cmsg_data[]; */
 
@@ -155,6 +160,7 @@ will need to increase long long */
 #define ALIGN_H(size) (((size) + sizeof(long) - 1U) & ~(sizeof(long)-1U))
 #define ALIGN_D(size) ALIGN_H(size)
 
+#ifndef __rtems__
 #define CMSG_FIRSTHDR(mhdr) \
           ((mhdr)->msg_controllen >= sizeof(struct cmsghdr) ? \
            (struct cmsghdr *)(mhdr)->msg_control : \
@@ -178,12 +184,14 @@ will need to increase long long */
 #define CMSG_LEN(length) (ALIGN_D(sizeof(struct cmsghdr)) + \
                            length)
 
+#endif /* __rtems__ */
 /* Set socket options argument */
 #define IFNAMSIZ NETIF_NAMESIZE
 struct ifreq {
   char ifr_name[IFNAMSIZ]; /* Interface name */
 };
 
+#ifndef __rtems__
 /* Socket protocol types (TCP/UDP/RAW) */
 #define SOCK_STREAM     1
 #define SOCK_DGRAM      2
@@ -217,8 +225,11 @@ struct ifreq {
 #define SO_ERROR        0x1007 /* get error status and clear */
 #define SO_TYPE         0x1008 /* get socket type */
 #define SO_CONTIMEO     0x1009 /* Unimplemented: connect timeout */
+#endif /* __rtems__ */
 #define SO_NO_CHECK     0x100a /* don't create UDP checksum */
 #define SO_BINDTODEVICE 0x100b /* bind to device */
+
+#ifndef __rtems__
 
 /*
  * Structure used for manipulating linger option.
@@ -244,6 +255,7 @@ struct linger {
 #define PF_INET         AF_INET
 #define PF_INET6        AF_INET6
 #define PF_UNSPEC       AF_UNSPEC
+#endif /* __rtems__ */
 
 #define IPPROTO_IP      0
 #define IPPROTO_ICMP    1
@@ -256,14 +268,17 @@ struct linger {
 #define IPPROTO_UDPLITE 136
 #define IPPROTO_RAW     255
 
+#ifndef __rtems__
 /* Flags we can use with send and recv. */
 #define MSG_PEEK       0x01    /* Peeks at an incoming message */
 #define MSG_WAITALL    0x02    /* Unimplemented: Requests that the function block until the full amount of data requested can be returned */
 #define MSG_OOB        0x04    /* Unimplemented: Requests out-of-band data. The significance and semantics of out-of-band data are protocol-specific */
 #define MSG_DONTWAIT   0x08    /* Nonblocking i/o for this operation only */
+#endif /* __rtems__ */
 #define MSG_MORE       0x10    /* Sender will send more */
+#ifndef __rtems__
 #define MSG_NOSIGNAL   0x20    /* Uninmplemented: Requests not to send the SIGPIPE signal if an attempt to send is made on a stream-oriented socket that is no longer connected. */
-
+#endif /* __rtems__ */
 
 /*
  * Options for level IPPROTO_IP
@@ -400,10 +415,15 @@ typedef struct ipv6_mreq {
  * we restrict parameters to at most 128 bytes.
  */
 #if !defined(FIONREAD) || !defined(FIONBIO)
+#undef IOCPARM_MASK
 #define IOCPARM_MASK    0x7fU           /* parameters must be < 128 bytes */
+#ifndef __rtems__
 #define IOC_VOID        0x20000000UL    /* no parameters */
 #define IOC_OUT         0x40000000UL    /* copy out parameters */
+#endif /* __rtems __ */
+#undef IOC_IN
 #define IOC_IN          0x80000000UL    /* copy in parameters */
+#ifndef __rtems__
 #define IOC_INOUT       (IOC_IN|IOC_OUT)
                                         /* 0x20000000 distinguishes new &
                                            old ioctl's */
@@ -411,6 +431,8 @@ typedef struct ipv6_mreq {
 
 #define _IOR(x,y,t)     ((long)(IOC_OUT|((sizeof(t)&IOCPARM_MASK)<<16)|((x)<<8)|(y)))
 
+#endif /* __rtems__ */
+#undef _IOW
 #define _IOW(x,y,t)     ((long)(IOC_IN|((sizeof(t)&IOCPARM_MASK)<<16)|((x)<<8)|(y)))
 #endif /* !defined(FIONREAD) || !defined(FIONBIO) */
 
@@ -529,6 +551,8 @@ struct timeval {
 void lwip_socket_thread_init(void); /* LWIP_NETCONN_SEM_PER_THREAD==1: initialize thread-local semaphore */
 void lwip_socket_thread_cleanup(void); /* LWIP_NETCONN_SEM_PER_THREAD==1: destroy thread-local semaphore */
 
+#ifndef __rtems__
+
 #if LWIP_COMPAT_SOCKETS == 2
 /* This helps code parsers/code completion by not having the COMPAT functions as defines */
 #define lwip_accept       accept
@@ -572,6 +596,7 @@ int fcntl(int s, int cmd, ...);
 #define ioctlsocket       ioctl
 #endif /* LWIP_POSIX_SOCKETS_IO_NAMES */
 #endif /* LWIP_COMPAT_SOCKETS == 2 */
+#endif /* __rtems__ */
 
 int lwip_accept(int s, struct sockaddr *addr, socklen_t *addrlen);
 int lwip_bind(int s, const struct sockaddr *name, socklen_t namelen);
@@ -608,6 +633,7 @@ int lwip_fcntl(int s, int cmd, int val);
 const char *lwip_inet_ntop(int af, const void *src, char *dst, socklen_t size);
 int lwip_inet_pton(int af, const char *src, void *dst);
 
+#ifndef __rtems__
 #if LWIP_COMPAT_SOCKETS
 #if LWIP_COMPAT_SOCKETS != 2
 /** @ingroup socket */
@@ -653,7 +679,7 @@ int lwip_inet_pton(int af, const char *src, void *dst);
 #define poll(fds,nfds,timeout)                    lwip_poll(fds,nfds,timeout)
 #endif
 /** @ingroup socket */
-#define ioctlsocket(s,cmd,argp)                   lwip_ioctl(s,cmd,argp)
+//#define ioctlsocket(s,cmd,argp)                   lwip_ioctl(s,cmd,argp)
 /** @ingroup socket */
 #define inet_ntop(af,src,dst,size)                lwip_inet_ntop(af,src,dst,size)
 /** @ingroup socket */
@@ -676,6 +702,7 @@ int lwip_inet_pton(int af, const char *src, void *dst);
 #define ioctl(s,cmd,argp)                         lwip_ioctl(s,cmd,argp)
 #endif /* LWIP_POSIX_SOCKETS_IO_NAMES */
 #endif /* LWIP_COMPAT_SOCKETS != 2 */
+#endif
 
 #endif /* LWIP_COMPAT_SOCKETS */
 

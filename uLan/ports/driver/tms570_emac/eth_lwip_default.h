@@ -3,7 +3,7 @@
 
 /* #define DEBUG 1 */
 /* #define STATIC_IP_ADDRESS 1 */
-
+#if 0
 void tms570_eth_memp_avaible(int type);
 
 #define ETH_LWIP_INIT_NETIF_FNC tms570_eth_init_netif
@@ -14,6 +14,7 @@ void tms570_eth_memp_avaible(int type);
 /**
  * Default MAC address for interface.
  */
+#endif /* 0 */
 #define MAC_ADDR_LEN              ETHARP_HWADDR_LEN
 
 #ifndef ETH_MAC_ADDR
