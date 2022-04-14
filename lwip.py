@@ -42,10 +42,10 @@ def build(bld):
             if f[-2:] == '.c':
                 source_files.append(os.path.join('./lwip', f))
         
-        for f in os.listdir('./lwip/ports/drivers'):
+        for f in os.listdir('./uLan/ports/driver/tms570_emac'):
             if f[-2:] == '.c':
-                driver_source.append(os.path.join('./lwip/ports/drivers', f))
-    source_files.append('./lwip/ports/os/rtems/arch/sys_arch.c')
+                driver_source.append(os.path.join('./uLan/ports/driver/tms570_emac', f))
+    source_files.append('./uLan/ports/os/rtems/arch/sys_arch.c')
     
     #source_files.append('./lwip/ports/port/sys_arch.c')
     #source_files.append('./lwip/ports/port/perf.c')
@@ -57,7 +57,7 @@ def build(bld):
 
     bld(features ='c',
         target='lwip_obj',
-        includes='./include ./lwip/src/include lwip/ports/port/include ./lwip/ports/os ./lwip/ports/drivers ./lwip/ports/os/rtems',
+        includes='./include ./lwip/src/include ./uLan/ports/os ./uLan/ports/driver/tms570_emac ./uLan/ports/os/rtems',
         source=source_files,
         )
 #    bld(features ='c',
@@ -74,4 +74,4 @@ def build(bld):
                 source='./lwip/test/sample_app.c',
                 use='lwip',
                 lib=['rtemscpu', 'rtemsbsp', 'rtemstest', 'lwip'],
-                includes='./include ./lwip/ports/os/rtems ./lwip/ports/os ./lwip/src/include ./lwip/ports/os/rtems ./lwip/test/' + os.path.relpath(os.path.join(arch_lib_path,'include')))
+                includes='./include ./uLan/ports/os/rtems ./uLan/ports/os ./lwip/src/include ./uLan/ports/os/rtems ./lwip/test/' + os.path.relpath(os.path.join(arch_lib_path,'include')))
