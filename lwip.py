@@ -29,6 +29,34 @@ from rtems_waf import rtems
 import yaml
 import os
 
+xilinx_drv_incl = ''
+xilinx_drv_incl += './embeddedsw/ThirdParty/sw_services/lwip211/src/contrib/ports/xilinx/include '
+xilinx_drv_incl += './embeddedsw/lib/bsp/standalone/src/common '
+xilinx_drv_incl += './embeddedsw/XilinxProcessorIPLib/drivers/common/src/ '
+xilinx_drv_incl += './embeddedsw/XilinxProcessorIPLib/drivers/scugic/src '
+xilinx_drv_incl += './embeddedsw/XilinxProcessorIPLib/drivers/emacps/src '
+xilinx_drv_incl += './rtemslwip/xilinx '
+
+xilinx_aarch64_drv_incl = ''
+xilinx_aarch64_drv_incl += './rtemslwip/zynqmp '
+xilinx_aarch64_drv_incl += './embeddedsw/lib/bsp/standalone/src/arm/ARMv8/64bit '
+xilinx_aarch64_drv_incl += './embeddedsw/lib/bsp/standalone/src/arm/common/gcc '
+xilinx_aarch64_drv_incl += './embeddedsw/lib/bsp/standalone/src/arm/common '
+
+# These sources are explicitly listed instead of using walk_sources below
+# because multiple BSPs of varying architecture are expected to use code from
+# the embeddedsw repository.
+xilinx_aarch64_driver_source = [
+    './embeddedsw/ThirdParty/sw_services/lwip211/src/contrib/ports/xilinx/netif/xadapter.c',
+    './embeddedsw/ThirdParty/sw_services/lwip211/src/contrib/ports/xilinx/netif/xpqueue.c',
+    './embeddedsw/ThirdParty/sw_services/lwip211/src/contrib/ports/xilinx/netif/xemacpsif_physpeed.c',
+    './embeddedsw/ThirdParty/sw_services/lwip211/src/contrib/ports/xilinx/netif/xemacpsif_hw.c',
+    './embeddedsw/XilinxProcessorIPLib/drivers/emacps/src/xemacps_bdring.c',
+    './embeddedsw/XilinxProcessorIPLib/drivers/emacps/src/xemacps.c',
+    './embeddedsw/XilinxProcessorIPLib/drivers/emacps/src/xemacps_control.c',
+    './embeddedsw/XilinxProcessorIPLib/drivers/emacps/src/xemacps_intr.c',
+    './embeddedsw/lib/bsp/standalone/src/common/xil_assert.c'
+]
 
 def build(bld):
     source_files = []
@@ -78,6 +106,27 @@ def build(bld):
         driver_source.extend(walk_sources('./rtemslwip/beaglebone'))
         drv_incl += './rtemslwip/beaglebone ./cpsw/src/include '
         driver_source.extend(walk_sources('./cpsw/src'))
+
+    # These files will only compile for BSPs on Xilinx hardware
+    is_xilinx_bsp = False
+    is_aarch64_bsp = False
+    is_qemu = False
+    if bld.env.RTEMS_ARCH_BSP.startswith('aarch64-rtems6-xilinx_zynqmp'):
+        is_xilinx_bsp = True
+        is_aarch64_bsp = True
+    if bld.env.RTEMS_ARCH_BSP.endswith('_qemu'):
+        is_qemu = True
+    if is_xilinx_bsp:
+        driver_source.extend(walk_sources('./embeddedsw/ThirdParty/sw_services/lwip211/src/contrib/ports/xilinx/netif'))
+        drv_incl += xilinx_drv_incl
+        if is_aarch64_bsp:
+            driver_source.extend(walk_sources('./rtemslwip/zynqmp'))
+            if is_qemu:
+                driver_source.extend(walk_sources('./rtemslwip/zynqmp_qemu'))
+            else:
+                driver_source.extend(walk_sources('./rtemslwip/zynqmp_hardware'))
+            driver_source.extend(xilinx_aarch64_driver_source)
+            drv_incl += xilinx_aarch64_drv_incl
 
     bld(features ='c',
         target='lwip_obj',
