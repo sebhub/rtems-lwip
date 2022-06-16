@@ -28,13 +28,15 @@
 
 #include <rtems/telnetd.h>
 #include <lwip/dhcp.h>
-#include <lwip/tcpip.h>
+#include <arch/sys_arch.h>
 
 #include <tmacros.h>
 
+#include <netstart.h>
+
 const char rtems_test_name[] = "TELNETD 1";
 
-//struct rtems_bsdnet_config rtems_bsdnet_config;
+struct netif net_interface;
 
 rtems_shell_env_t env;
 
@@ -86,10 +88,28 @@ rtems_shell_cmd_t shell_NETINFO_Command = {
 static rtems_task Init( rtems_task_argument argument )
 {
   rtems_status_code sc;
+  int ret;
 
   TEST_BEGIN();
 
-  lwip_init();
+  ip_addr_t ipaddr, netmask, gw;
+
+  IP_ADDR4( &ipaddr, 10, 0, 2, 14 );
+  IP_ADDR4( &netmask, 255, 255, 255, 0 );
+  IP_ADDR4( &gw, 10, 0, 2, 3 );
+  unsigned char mac_ethernet_address[] = { 0x00, 0x0a, 0x35, 0x00, 0x22, 0x01 };
+
+  ret = start_networking(
+    &net_interface,
+    &ipaddr,
+    &netmask,
+    &gw,
+    mac_ethernet_address
+  );
+
+  if ( ret != 0 ) {
+    return;
+  }
 
   rtems_shell_init_environment();
 
