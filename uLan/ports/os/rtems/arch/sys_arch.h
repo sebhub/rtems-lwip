@@ -68,7 +68,16 @@ typedef port_mailbox_t sys_mbox_t;
 typedef port_sem_t sys_sem_t;
 typedef rtems_id sys_thread_t;
 typedef port_mutex_t sys_mutex_t;
+#ifdef __rtems__
+#include <rtems/score/threaddispatch.h>
+#ifdef RTEMS_SMP
+typedef Per_CPU_Control *sys_prot_t;
+#else
 typedef rtems_interrupt_level sys_prot_t;
+#endif
+#else
+typedef rtems_interrupt_level sys_prot_t;
+#endif
 
 void
 sys_arch_delay(unsigned int x);
