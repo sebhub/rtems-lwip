@@ -77,14 +77,6 @@ def build(bld):
     source_files.append('./rtemslwip/common/rtems_lwip_io.c')
     source_files.append('./rtemslwip/common/rtems_lwip_sysdefs.c')
     
-    #source_files.append('./lwip/ports/port/sys_arch.c')
-    #source_files.append('./lwip/ports/port/perf.c')
-    #source_files.append('./lwip/ports/port/netif/fifo.c')
-    #source_files.append('./lwip/ports/port/netif/list.c')
-    #source_files.append('./lwip/ports/port/netif/pcapif.c')
-    #source_files.append('./lwip/ports/port/netif/sio.c')
-    #source_files.append('./lwip/ports/port/netif/tapif.c')
-    
     def walk_sources(path):
         sources = []
         for root, dirs, files in os.walk(path):
