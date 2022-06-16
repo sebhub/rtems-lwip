@@ -41,9 +41,8 @@
 
 #include <rtems/rtems/sem.h>
 #include <rtems/rtems/intr.h>
-#include <rtems/score/cpu.h>
 #include <bsp/irq-generic.h>
-//#include "eth_lwip_default.h"
+#include "arch/eth_lwip_default.h"
 
 /* Typedefs for the various port-specific types. */
 #if defined(NO_SYS) && NO_SYS
@@ -101,8 +100,30 @@ sys_arch_unmask_interrupt_source(unsigned int x)
   bsp_interrupt_vector_enable(x);
 }
 
+#ifndef __rtems__
+static inline sys_prot_t
+sys_arch_protect(void)
+{
+  sys_prot_t pval;
+
+  rtems_interrupt_disable(pval);
+  return pval;
+}
+
+static inline void
+sys_arch_unprotect(sys_prot_t pval)
+{
+  rtems_interrupt_enable(pval);
+}
+
+static inline void
+sys_arch_data_sync_barier(void){
+  _ARM_Data_synchronization_barrier();
+}
+#else
 sys_prot_t sys_arch_protect();
 
 void sys_arch_unprotect(sys_prot_t pval);
+#endif
 
 #endif /* __ARCH_SYS_ARCH_H__ */

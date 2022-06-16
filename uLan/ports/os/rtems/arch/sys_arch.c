@@ -269,7 +269,11 @@ sys_thread_new(const char *name, lwip_thread_fn function, void *arg, int stack_s
   rtems_status_code res;
 
   res = rtems_task_create(
+#ifdef __rtems__
+    rtems_build_name(name[0], name[1], name[2], name[3]),
+#else
     rtems_build_name('L', 'W', 'I', 'P'),
+#endif
     prio,
     stack_size,
     RTEMS_PREEMPT,
@@ -356,6 +360,7 @@ sys_request_irq(unsigned int irqnum, sys_irq_handler_t handler,
   return (res != RTEMS_SUCCESSFUL) ? -1 : 0;
 }
 
+#ifdef __rtems__
 sys_prot_t
 sys_arch_protect()
 {
@@ -375,4 +380,4 @@ sys_mbox_trypost_fromisr(sys_mbox_t *q, void *msg)
 {
   return sys_mbox_trypost(q, msg);
 }
-
+#endif
