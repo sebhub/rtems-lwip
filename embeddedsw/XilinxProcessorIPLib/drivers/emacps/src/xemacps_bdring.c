@@ -225,7 +225,16 @@ LONG XEmacPs_BdRingCreate(XEmacPs_BdRing * RingPtr, UINTPTR PhysAddr,
 	 *  - Clear the entire space
 	 *  - Setup each BD's BDA field with the physical address of the next BD
 	 */
+#ifndef __rtems__
 	(void)memset((void *) VirtAddrLoc, 0, (RingPtr->Separation * BdCount));
+#else
+	unsigned char* mem = (unsigned char *) VirtAddrLoc;
+	int len = RingPtr->Separation * BdCount;
+	while (len-- > 0) {
+		*mem = 0;
+		mem++;
+	}
+#endif
 
 	BdVirtAddr = VirtAddrLoc;
 	BdPhyAddr = PhysAddr + RingPtr->Separation;
