@@ -137,6 +137,20 @@ def build(bld):
         target = 'lwip',
         cflags='-g -Wall -O0',
         use=['lwip_obj', 'driver_obj'])
+    bld.install_files("${PREFIX}/" + arch_lib_path, ["liblwip.a"])
+
+    def install_headers(root_path):
+        for root, dirs, files in os.walk(root_path):
+            for name in files:
+                ext = os.path.splitext(name)[1]
+                src_root = os.path.split(root)
+                path = os.path.join(src_root[0], src_root[1])
+                if ext == '.h':
+                    subpath = path.removeprefix(root_path).removeprefix("/")
+                    bld.install_files("${PREFIX}/" + arch_lib_path + "/include/" + subpath,
+                        os.path.join(path,name))
+
+    [install_headers(path) for path in (drv_incl + common_includes).split(' ')[:-1]]
 
     bld.program(features='c',
                 target='networking01.exe',
