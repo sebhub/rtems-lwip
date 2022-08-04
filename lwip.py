@@ -173,3 +173,13 @@ def build(bld):
                 use='telnetd lwip rtemstest ftpd',
                 cflags='-g -Wall -O0',
                 includes=drv_incl + common_includes + './rtemslwip/test/ ' + os.path.relpath(os.path.join(arch_lib_path,'include')))
+
+def add_flags(flags, new_flags):
+    for flag in new_flags:
+        if flag not in flags:
+            flags.append(flag)
+
+def bsp_configure(conf, arch_bsp):
+    section_flags = ["-fdata-sections", "-ffunction-sections"]
+    add_flags(conf.env.CFLAGS, section_flags)
+    add_flags(conf.env.CXXFLAGS, section_flags)

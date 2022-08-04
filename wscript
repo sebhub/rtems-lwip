@@ -49,7 +49,7 @@ def options(opt):
 
 
 def configure(conf):
-    rtems.configure(conf)
+    rtems.configure(conf, lwip.bsp_configure)
 
 
 def build(bld):
