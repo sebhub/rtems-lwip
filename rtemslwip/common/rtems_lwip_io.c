@@ -77,8 +77,6 @@
 #include "lwip/sockets.h"
 #include "lwip/sys.h"
 
-#include "rtems_lwip_int.h"
-
 static const rtems_filesystem_file_handlers_r rtems_lwip_socket_handlers;
 
 static rtems_recursive_mutex rtems_lwip_mutex =
@@ -173,45 +171,106 @@ int socket(
   int fd;
   int lwipfd;
 
-  if ( domain == rtems_lwip_sysdefs_PF_UNSPEC ) {
-    domain = PF_UNSPEC;
-  } else if ( domain == rtems_lwip_sysdefs_PF_INET ) {
-    domain = PF_INET;
-  } else if ( domain == rtems_lwip_sysdefs_PF_INET6 ) {
-    domain = PF_INET6;
-  } else {
-    errno = EINVAL;
-
-    return -1;
-  }
-
-  if ( type == rtems_lwip_sysdefs_SOCK_STREAM ) {
-    type = SOCK_STREAM;
-  } else if ( type == rtems_lwip_sysdefs_SOCK_DGRAM ) {
-    type = SOCK_DGRAM;
-  } else {
-    errno = EINVAL;
-
-    return -1;
-  }
-
   rtems_lwip_semaphore_obtain();
 
   lwipfd = lwip_socket( domain, type, 0 );
 
   if ( lwipfd < 0 ) {
-    fd = -1;
-  } else {
-    fd = rtems_lwip_make_sysfd_from_lwipfd( lwipfd );
+    return -1;
+  }
 
-    if ( fd < 0 ) {
-      lwip_close( lwipfd );
-    }
+  fd = rtems_lwip_make_sysfd_from_lwipfd( lwipfd );
+
+  if ( fd < 0 ) {
+    lwip_close( lwipfd );
   }
 
   rtems_lwip_semaphore_release();
 
   return fd;
+}
+
+static int setup_socketpair(int listener, int *socket_vector)
+{
+  union {
+    struct sockaddr addr;
+    struct sockaddr_in inaddr;
+  } a;
+  int reuse = 1;
+  socklen_t addrlen = sizeof(a.inaddr);
+
+  memset(&a, 0, sizeof(a));
+  a.inaddr.sin_family = AF_INET;
+  a.inaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  a.inaddr.sin_port = 0;
+
+  if (setsockopt(listener, SOL_SOCKET, SO_REUSEADDR,
+       (char*) &reuse, (socklen_t) sizeof(reuse)) == -1) {
+    return 1;
+  }
+
+  if  (bind(listener, &a.addr, sizeof(a.inaddr)) == -1) {
+    return 1;
+  }
+
+  memset(&a, 0, sizeof(a));
+  if  (getsockname(listener, &a.addr, &addrlen) == -1) {
+    return 1;
+  }
+
+  a.inaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  a.inaddr.sin_family = AF_INET;
+
+  if (listen(listener, 1) == -1) {
+    return 1;
+  }
+
+  socket_vector[0] = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if (socket_vector[0] == -1) {
+    return 1;
+  }
+
+  if (connect(socket_vector[0], &a.addr, sizeof(a.inaddr)) == -1) {
+    return 1;
+  }
+
+  socket_vector[1] = accept(listener, NULL, NULL);
+  if (socket_vector[1] == -1) {
+    return 1;
+  }
+
+  close(listener);
+  return 0;
+}
+
+/* Fake socketpair() support with a loopback TCP socket */
+int
+socketpair(int domain, int type, int protocol, int *socket_vector)
+{
+  int listener;
+  int saved_errno;
+
+  if (socket_vector == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+  socket_vector[0] = socket_vector[1] = -1;
+
+  listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if (listener == -1)
+    return -1;
+
+  if (setup_socketpair(listener, socket_vector) == 0) {
+    return 0;
+  }
+
+  saved_errno = errno;
+  close(listener);
+  close(socket_vector[0]);
+  close(socket_vector[1]);
+  errno = saved_errno;
+  socket_vector[0] = socket_vector[1] = -1;
+  return -1;
 }
 
 int bind(
@@ -220,59 +279,17 @@ int bind(
   socklen_t              namelen
 )
 {
-  int                ret = -1;
   int                lwipfd;
-  int                family;
-  struct sockaddr   *lwipname;
-  socklen_t          lwipnamelen;
-  struct sockaddr_in so_in;
 
- #if LWIP_IPV6
-  struct sockaddr_in6 so_in6;
- #endif
+  rtems_lwip_semaphore_obtain();
+  lwipfd = rtems_lwip_sysfd_to_lwipfd( s );
+  rtems_lwip_semaphore_release();
 
-  family = rtems_lwip_sysdefs_sockaddr_get_family( name );
-
-  if ( ( family == rtems_lwip_sysdefs_AF_INET ) &&
-       ( namelen >= rtems_lwip_sysdefs_sockaddr_in_size ) ) {
-    so_in.sin_len = sizeof( so_in );
-    so_in.sin_family = PF_INET;
-    so_in.sin_port = rtems_lwip_sysdefs_sockaddr_in_get_sin_port( name );
-    so_in.sin_addr.s_addr =
-      rtems_lwip_sysdefs_sockaddr_in_get_sin_addr( name );
-    lwipname = (struct sockaddr *) &so_in;
-    lwipnamelen = so_in.sin_len;
- #if LWIP_IPV6
-  } else if ( ( family == rtems_lwip_sysdefs_AF_INET6 ) &&
-              ( namelen >= rtems_lwip_sysdefs_sockaddr_in6_size ) ) {
-    so_in6.sin6_len = sizeof( so_in6 );
-    so_in6.sin6_family = PF_INET6;
-    so_in6.sin6_port = rtems_lwip_sysdefs_sockaddr_in6_get_sin6_port( name );
-    memcpy( &so_in6.sin6_addr,
-      rtems_lwip_sysdefs_sockaddr_in6_get_sin6_addr_ptr_const( name ),
-      sizeof( so_in6.sin6_addr ) );
-    so_in6.sin6_flowinfo = rtems_lwip_sysdefs_sockaddr_in6_get_sin6_flowinfo(
-      name );
-    so_in6.sin6_scope_id = rtems_lwip_sysdefs_sockaddr_in6_get_sin6_scope_id(
-      name );
-    lwipname = (struct sockaddr *) &so_in6;
-    lwipnamelen = so_in6.sin6_len;
- #endif
-  } else {
-    errno = EINVAL;
-
+  if ( lwipfd < 0 ) {
     return -1;
   }
 
-  rtems_lwip_semaphore_obtain();
-
-  if ( ( lwipfd = rtems_lwip_sysfd_to_lwipfd( s ) ) >= 0 ) {
-    ret = lwip_bind( lwipfd, lwipname, lwipnamelen );
-  }
-
-  rtems_lwip_semaphore_release();
-
-  return ret;
+  return lwip_bind( lwipfd, name, namelen );
 }
 
 int connect(
@@ -281,59 +298,17 @@ int connect(
   socklen_t              namelen
 )
 {
-  int                ret = -1;
   int                lwipfd;
-  int                family;
-  struct sockaddr   *lwipname;
-  socklen_t          lwipnamelen;
-  struct sockaddr_in so_in;
 
- #if LWIP_IPV6
-  struct sockaddr_in6 so_in6;
- #endif
+  rtems_lwip_semaphore_obtain();
+  lwipfd = rtems_lwip_sysfd_to_lwipfd( s );
+  rtems_lwip_semaphore_release();
 
-  family = rtems_lwip_sysdefs_sockaddr_get_family( name );
-
-  if ( ( family == rtems_lwip_sysdefs_AF_INET ) &&
-       ( namelen >= rtems_lwip_sysdefs_sockaddr_in_size ) ) {
-    so_in.sin_len = sizeof( so_in );
-    so_in.sin_family = AF_INET;
-    so_in.sin_port = rtems_lwip_sysdefs_sockaddr_in_get_sin_port( name );
-    so_in.sin_addr.s_addr =
-      rtems_lwip_sysdefs_sockaddr_in_get_sin_addr( name );
-    lwipname = (struct sockaddr *) &so_in;
-    lwipnamelen = so_in.sin_len;
- #if LWIP_IPV6
-  } else if ( ( family == rtems_lwip_sysdefs_AF_INET6 ) &&
-              ( namelen >= rtems_lwip_sysdefs_sockaddr_in6_size ) ) {
-    so_in6.sin6_len = sizeof( so_in6 );
-    so_in6.sin6_family = AF_INET6;
-    so_in6.sin6_port = rtems_lwip_sysdefs_sockaddr_in6_get_sin6_port( name );
-    memcpy( &so_in6.sin6_addr,
-      rtems_lwip_sysdefs_sockaddr_in6_get_sin6_addr_ptr_const( name ),
-      sizeof( so_in6.sin6_addr ) );
-    so_in6.sin6_flowinfo = rtems_lwip_sysdefs_sockaddr_in6_get_sin6_flowinfo(
-      name );
-    so_in6.sin6_scope_id = rtems_lwip_sysdefs_sockaddr_in6_get_sin6_scope_id(
-      name );
-    lwipname = (struct sockaddr *) &so_in6;
-    lwipnamelen = so_in6.sin6_len;
- #endif
-  } else {
-    errno = EINVAL;
-
+  if ( lwipfd < 0 ) {
     return -1;
   }
 
-  rtems_lwip_semaphore_obtain();
-
-  if ( ( lwipfd = rtems_lwip_sysfd_to_lwipfd( s ) ) >= 0 ) {
-    ret = lwip_connect( lwipfd, lwipname, lwipnamelen );
-  }
-
-  rtems_lwip_semaphore_release();
-
-  return ret;
+  return lwip_connect( lwipfd, name, namelen );
 }
 
 int listen(
@@ -341,18 +316,17 @@ int listen(
   int backlog
 )
 {
-  int ret = -1;
   int lwipfd;
 
   rtems_lwip_semaphore_obtain();
-
-  if ( ( lwipfd = rtems_lwip_sysfd_to_lwipfd( s ) ) >= 0 ) {
-    ret = lwip_listen( lwipfd, backlog );
-  }
-
+  lwipfd = rtems_lwip_sysfd_to_lwipfd( s );
   rtems_lwip_semaphore_release();
 
-  return ret;
+  if ( lwipfd < 0 ) {
+    return -1;
+  }
+
+  return lwip_listen( lwipfd, backlog );
 }
 
 int accept(
@@ -363,71 +337,24 @@ int accept(
 {
   int                ret = -1;
   int                lwipfd;
-  struct sockaddr   *lwipname = name;
-  socklen_t          lwipnamelen = *namelen;
-  struct sockaddr_in so_in;
-
- #if LWIP_IPV6
-  struct sockaddr_in6 so_in6;
- #endif
 
   rtems_lwip_semaphore_obtain();
-
-  if ( ( lwipfd = rtems_lwip_sysfd_to_lwipfd( s ) ) >= 0 ) {
-
-    rtems_lwip_semaphore_release();
-    lwipfd = lwip_accept( lwipfd, lwipname, &lwipnamelen );
-    rtems_lwip_semaphore_obtain();
-  }
-
+  lwipfd = rtems_lwip_sysfd_to_lwipfd( s );
   rtems_lwip_semaphore_release();
 
-  if ( lwipfd < 0 )
-    return lwipfd;
-
-  if ( lwipname->sa_family == AF_INET ) {
-    memcpy( &so_in, lwipname, sizeof( so_in ) );
-    rtems_lwip_sysdefs_sockaddr_set_len( name,
-      rtems_lwip_sysdefs_sockaddr_in_size );
-    rtems_lwip_sysdefs_sockaddr_set_family( name, rtems_lwip_sysdefs_AF_INET );
-    rtems_lwip_sysdefs_sockaddr_in_set_sin_port( name, so_in.sin_port );
-    rtems_lwip_sysdefs_sockaddr_in_set_sin_addr( name, so_in.sin_addr.s_addr );
- #if LWIP_IPV6
-  } else if ( lwipname->sa_family == AF_INET6 ) {
-    memcpy( &so_in6, lwipname, sizeof( so_in6 ) );
-    rtems_lwip_sysdefs_sockaddr_set_len( name,
-      rtems_lwip_sysdefs_sockaddr_in6_size );
-    rtems_lwip_sysdefs_sockaddr_set_family( name,
-      rtems_lwip_sysdefs_AF_INET6 );
-
-    rtems_lwip_sysdefs_sockaddr_in6_set_sin6_port( name, so_in6.sin6_port );
-    memcpy( rtems_lwip_sysdefs_sockaddr_in6_get_sin6_addr_ptr( name ),
-      &so_in6.sin6_addr,
-      sizeof( so_in6.sin6_addr ) );
-    rtems_lwip_sysdefs_sockaddr_in6_set_sin6_flowinfo( name,
-      so_in6.sin6_flowinfo );
-    rtems_lwip_sysdefs_sockaddr_in6_set_sin6_scope_id( name,
-      so_in6.sin6_scope_id );
- #endif
-  } else {
-    lwip_close( lwipfd );
-    errno = EINVAL;
-
+  if ( lwipfd < 0 ) {
     return -1;
   }
 
+  lwipfd = lwip_accept( lwipfd, name, namelen );
+
   rtems_lwip_semaphore_obtain();
   ret = rtems_lwip_make_sysfd_from_lwipfd( lwipfd );
-
-  if ( ret < 0 ) {
-    rtems_lwip_semaphore_release();
-    lwip_close( lwipfd );
-    rtems_lwip_semaphore_obtain();
-  }
-
   rtems_lwip_semaphore_release();
 
-  *namelen = rtems_lwip_sysdefs_sockaddr_get_len( name );
+  if ( ret < 0 ) {
+    lwip_close( lwipfd );
+  }
 
   return ret;
 }
@@ -441,20 +368,17 @@ int shutdown(
   int how
 )
 {
-  int ret = -1;
   int lwipfd;
 
   rtems_lwip_semaphore_obtain();
-
-  if ( ( lwipfd = rtems_lwip_sysfd_to_lwipfd( s ) ) >= 0 ) {
-    rtems_lwip_semaphore_release();
-    ret = lwip_shutdown( lwipfd, how );
-    rtems_lwip_semaphore_obtain();
-  }
-
+  lwipfd = rtems_lwip_sysfd_to_lwipfd( s );
   rtems_lwip_semaphore_release();
 
-  return ret;
+  if ( lwipfd < 0 ) {
+    return -1;
+  }
+
+  return lwip_shutdown( lwipfd, how );
 }
 
 ssize_t recv(
@@ -464,20 +388,17 @@ ssize_t recv(
   int    flags
 )
 {
-  int ret = -1;
   int lwipfd;
 
   rtems_lwip_semaphore_obtain();
-
-  if ( ( lwipfd = rtems_lwip_sysfd_to_lwipfd( s ) ) >= 0 ) {
-    rtems_lwip_semaphore_release();
-    ret = lwip_recv( lwipfd, buf, len, flags );
-    rtems_lwip_semaphore_obtain();
-  }
-
+  lwipfd = rtems_lwip_sysfd_to_lwipfd( s );
   rtems_lwip_semaphore_release();
 
-  return ret;
+  if ( lwipfd < 0 ) {
+    return -1;
+  }
+
+  return lwip_recv( lwipfd, buf, len, flags );
 }
 
 ssize_t send(
@@ -487,20 +408,17 @@ ssize_t send(
   int         flags
 )
 {
-  int ret = -1;
   int lwipfd;
 
   rtems_lwip_semaphore_obtain();
-
-  if ( ( lwipfd = rtems_lwip_sysfd_to_lwipfd( s ) ) >= 0 ) {
-    rtems_lwip_semaphore_release();
-    ret = lwip_send( lwipfd, buf, len, flags );
-    rtems_lwip_semaphore_obtain();
-  }
-
+  lwipfd = rtems_lwip_sysfd_to_lwipfd( s );
   rtems_lwip_semaphore_release();
 
-  return ret;
+  if ( lwipfd < 0 ) {
+    return -1;
+  }
+
+  return lwip_send( lwipfd, buf, len, flags );
 }
 
 ssize_t recvfrom(
@@ -512,75 +430,20 @@ ssize_t recvfrom(
   socklen_t       *namelen
 )
 {
-  int                ret = -1;
   int                lwipfd;
-  struct sockaddr   *lwipname = name;
-  socklen_t          lwipnamelen = *namelen;
-  struct sockaddr_in so_in;
-
- #if LWIP_IPV6
-  struct sockaddr_in6 so_in6;
- #endif
 
   if ( name == NULL )
     return recv( s, buf, len, flags );
 
   rtems_lwip_semaphore_obtain();
-
-  if ( ( lwipfd = rtems_lwip_sysfd_to_lwipfd( s ) ) >= 0 ) {
-    rtems_lwip_semaphore_release();
-    lwipfd = lwip_recvfrom( lwipfd, buf, len, flags, lwipname, &lwipnamelen );
-    rtems_lwip_semaphore_obtain();
-  }
-
+  lwipfd = rtems_lwip_sysfd_to_lwipfd( s );
   rtems_lwip_semaphore_release();
 
-  if ( lwipfd < 0 )
-    return lwipfd;
-
-  if ( lwipname->sa_family == AF_INET ) {
-    memcpy( &so_in, lwipname, sizeof( so_in ) );
-    rtems_lwip_sysdefs_sockaddr_set_len( name,
-      rtems_lwip_sysdefs_sockaddr_in_size );
-    rtems_lwip_sysdefs_sockaddr_set_family( name, rtems_lwip_sysdefs_AF_INET );
-    rtems_lwip_sysdefs_sockaddr_in_set_sin_port( name, so_in.sin_port );
-    rtems_lwip_sysdefs_sockaddr_in_set_sin_addr( name, so_in.sin_addr.s_addr );
- #if LWIP_IPV6
-  } else if ( lwipname->sa_family == AF_INET6 ) {
-    memcpy( &so_in6, lwipname, sizeof( so_in6 ) );
-    rtems_lwip_sysdefs_sockaddr_set_len( name,
-      rtems_lwip_sysdefs_sockaddr_in6_size );
-    rtems_lwip_sysdefs_sockaddr_set_family( name,
-      rtems_lwip_sysdefs_AF_INET6 );
-
-    rtems_lwip_sysdefs_sockaddr_in6_set_sin6_port( name, so_in6.sin6_port );
-    memcpy( rtems_lwip_sysdefs_sockaddr_in6_get_sin6_addr_ptr( name ),
-      &so_in6.sin6_addr,
-      sizeof( so_in6.sin6_addr ) );
-    rtems_lwip_sysdefs_sockaddr_in6_set_sin6_flowinfo( name,
-      so_in6.sin6_flowinfo );
-    rtems_lwip_sysdefs_sockaddr_in6_set_sin6_scope_id( name,
-      so_in6.sin6_scope_id );
- #endif
-  } else {
-    lwip_close( lwipfd );
-    errno = EINVAL;
-
+  if ( lwipfd < 0 ) {
     return -1;
   }
 
-  rtems_lwip_semaphore_obtain();
-  ret = rtems_lwip_make_sysfd_from_lwipfd( lwipfd );
-
-  if ( ret < 0 ) {
-    lwip_close( lwipfd );
-  }
-
-  rtems_lwip_semaphore_release();
-
-  *namelen = rtems_lwip_sysdefs_sockaddr_get_len( name );
-
-  return ret;
+  return lwip_recvfrom( lwipfd, buf, len, flags, name, namelen );
 }
 
 ssize_t sendto(
@@ -592,61 +455,118 @@ ssize_t sendto(
   socklen_t              namelen
 )
 {
-  int                ret = -1;
   int                lwipfd;
-  int                family;
-  struct sockaddr   *lwipname;
-  socklen_t          lwipnamelen;
-  struct sockaddr_in so_in;
-
- #if LWIP_IPV6
-  struct sockaddr_in6 so_in6;
- #endif
 
   if ( name == NULL )
     return send( s, buf, len, flags );
 
-  family = rtems_lwip_sysdefs_sockaddr_get_family( name );
+  rtems_lwip_semaphore_obtain();
+  lwipfd = rtems_lwip_sysfd_to_lwipfd( s );
+  rtems_lwip_semaphore_release();
 
-  if ( ( family == rtems_lwip_sysdefs_AF_INET ) &&
-       ( namelen >= rtems_lwip_sysdefs_sockaddr_in_size ) ) {
-    so_in.sin_len = sizeof( so_in );
-    so_in.sin_family = AF_INET;
-    so_in.sin_port = rtems_lwip_sysdefs_sockaddr_in_get_sin_port( name );
-    so_in.sin_addr.s_addr =
-      rtems_lwip_sysdefs_sockaddr_in_get_sin_addr( name );
-    lwipname = (struct sockaddr *) &so_in;
-    lwipnamelen = so_in.sin_len;
- #if LWIP_IPV6
-  } else if ( ( family == rtems_lwip_sysdefs_AF_INET6 ) &&
-              ( namelen >= rtems_lwip_sysdefs_sockaddr_in6_size ) ) {
-    so_in6.sin6_len = sizeof( so_in6 );
-    so_in6.sin6_family = AF_INET6;
-    so_in6.sin6_port = rtems_lwip_sysdefs_sockaddr_in6_get_sin6_port( name );
-    memcpy( &so_in6.sin6_addr,
-      rtems_lwip_sysdefs_sockaddr_in6_get_sin6_addr_ptr_const( name ),
-      sizeof( so_in6.sin6_addr ) );
-    so_in6.sin6_flowinfo = rtems_lwip_sysdefs_sockaddr_in6_get_sin6_flowinfo(
-      name );
-    so_in6.sin6_scope_id = rtems_lwip_sysdefs_sockaddr_in6_get_sin6_scope_id(
-      name );
-    lwipname = (struct sockaddr *) &so_in6;
-    lwipnamelen = so_in6.sin6_len;
- #endif
-  } else {
-    errno = EINVAL;
-
+  if ( lwipfd < 0 ) {
     return -1;
   }
 
-  rtems_lwip_semaphore_obtain();
+  return lwip_sendto( lwipfd, buf, len, flags, name, namelen );
+}
 
-  if ( ( lwipfd = rtems_lwip_sysfd_to_lwipfd( s ) ) >= 0 ) {
-    rtems_lwip_semaphore_release();
-    ret = lwip_sendto( lwipfd, buf, len, flags, lwipname, lwipnamelen );
-    rtems_lwip_semaphore_obtain();
+static int fdset_sysfd_to_lwipfd( int maxfdp1, fd_set *orig_set, fd_set *mapped_set )
+{
+  int new_max = 0;
+  FD_ZERO( mapped_set );
+
+  if ( orig_set == NULL ) {
+    return new_max;
   }
 
+  for ( int sysfd = 0; sysfd < maxfdp1; sysfd++ ) {
+    int lwipfd;
+
+    if ( FD_ISSET( sysfd, orig_set ) == 0 ) {
+      continue;
+    }
+
+    lwipfd = rtems_lwip_sysfd_to_lwipfd( sysfd );
+    if ( lwipfd < 0 ) {
+      return -1;
+    }
+
+    if ( lwipfd > (new_max - 1) ) {
+        new_max = lwipfd + 1;
+    }
+
+    FD_SET( lwipfd, mapped_set );
+  }
+  return new_max;
+}
+
+static void fdset_lwipfd_to_sysfd( int maxfdp1, fd_set *orig_set, fd_set *mapped_set )
+{
+  fd_set new_orig_set;
+
+  FD_ZERO( &new_orig_set );
+
+  if ( orig_set == NULL ) {
+    return;
+  }
+
+  for ( int sysfd = 0; sysfd < maxfdp1; sysfd++ ) {
+    int lwipfd;
+
+    if ( FD_ISSET( sysfd, orig_set ) == 0 ) {
+      continue;
+    }
+
+    lwipfd = rtems_lwip_sysfd_to_lwipfd( sysfd );
+
+    if ( FD_ISSET( lwipfd, mapped_set ) == 0 ) {
+      continue;
+    }
+
+    FD_SET( sysfd, &new_orig_set );
+  }
+
+  *orig_set = new_orig_set;
+}
+
+int select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
+                struct timeval *timeout)
+{
+  int rmaxp1;
+  int wmaxp1;
+  int emaxp1;
+  int newmaxfdp1;
+  int ret;
+  fd_set newread, newwrite, newexcept;
+
+  /* Save original FD sets,  */
+
+  rtems_lwip_semaphore_obtain();
+  rmaxp1 = fdset_sysfd_to_lwipfd( maxfdp1, readset, &newread );
+  wmaxp1 = fdset_sysfd_to_lwipfd( maxfdp1, writeset, &newwrite );
+  emaxp1 = fdset_sysfd_to_lwipfd( maxfdp1, exceptset, &newexcept );
+  rtems_lwip_semaphore_release();
+
+  if ( rmaxp1 < 0 || wmaxp1 < 0 || emaxp1 < 0 ) {
+    errno = ENOSYS;
+    return -1;
+  }
+
+  newmaxfdp1 = rmaxp1;
+  if ( wmaxp1 > newmaxfdp1 ) {
+    newmaxfdp1 = wmaxp1;
+  }
+  if ( emaxp1 > newmaxfdp1 ) {
+    newmaxfdp1 = emaxp1;
+  }
+
+  ret = lwip_select( newmaxfdp1, &newread, &newwrite, &newexcept, timeout );
+
+  rtems_lwip_semaphore_obtain();
+  fdset_lwipfd_to_sysfd( maxfdp1, readset, &newread );
+  fdset_lwipfd_to_sysfd( maxfdp1, writeset, &newwrite );
+  fdset_lwipfd_to_sysfd( maxfdp1, exceptset, &newexcept );
   rtems_lwip_semaphore_release();
 
   return ret;
@@ -750,6 +670,8 @@ ssize_t sendmsg(
   return ( ret );
 }
 
+#endif
+
 /*
  * All `receive' operations end up calling this routine.
  */
@@ -759,112 +681,18 @@ ssize_t recvmsg(
   int            flags
 )
 {
-  int           ret = -1;
-  int           error;
-  struct uio    auio;
-  struct iovec *iov;
-  int           lwipfd;
-  struct mbuf  *from = NULL, *control = NULL;
-  int           i;
-  int           len;
+  int lwipfd;
 
   rtems_lwip_semaphore_obtain();
+  lwipfd = rtems_lwip_sysfd_to_lwipfd( s );
+  rtems_lwip_semaphore_release();
 
-  if ( ( so = rtems_lwip_sysfd_to_lwipfd( s ) ) == NULL ) {
-    rtems_lwip_semaphore_release();
-
+  if ( lwipfd < 0 ) {
     return -1;
   }
 
-  auio.uio_iov = mp->msg_iov;
-  auio.uio_iovcnt = mp->msg_iovlen;
-  auio.uio_segflg = UIO_USERSPACE;
-  auio.uio_rw = UIO_READ;
-  auio.uio_offset = 0;
-  auio.uio_resid = 0;
-  iov = mp->msg_iov;
-
-  for ( i = 0; i < mp->msg_iovlen; i++, iov++ ) {
-    if ( ( auio.uio_resid += iov->iov_len ) < 0 ) {
-      errno = EINVAL;
-      rtems_lwip_semaphore_release();
-
-      return -1;
-    }
-  }
-
-  len = auio.uio_resid;
-  mp->msg_flags = flags;
-  error = soreceive( so, &from, &auio, (struct mbuf **) NULL,
-    mp->msg_control ? &control : (struct mbuf **) NULL,
-    &mp->msg_flags );
-
-  if ( error ) {
-    if ( auio.uio_resid != len && ( error == EINTR || error == EWOULDBLOCK ) )
-      error = 0;
-  }
-
-  if ( error ) {
-    errno = error;
-  } else {
-    ret = len - auio.uio_resid;
-
-    if ( mp->msg_name ) {
-      len = mp->msg_namelen;
-
-      if ( ( len <= 0 ) || ( from == NULL ) ) {
-        len = 0;
-      } else {
-        if ( len > from->m_len )
-          len = from->m_len;
-
-        memcpy( mp->msg_name, mtod( from, caddr_t ), len );
-      }
-
-      mp->msg_namelen = len;
-    }
-
-    if ( mp->msg_control ) {
-      struct mbuf *m;
-      void        *ctlbuf;
-
-      len = mp->msg_controllen;
-      m = control;
-      mp->msg_controllen = 0;
-      ctlbuf = mp->msg_control;
-
-      while ( m && ( len > 0 ) ) {
-        unsigned int tocopy;
-
-        if ( len >= m->m_len )
-          tocopy = m->m_len;
-        else {
-          mp->msg_flags |= MSG_CTRUNC;
-          tocopy = len;
-        }
-
-        memcpy( ctlbuf, mtod( m, caddr_t ), tocopy );
-        ctlbuf += tocopy;
-        len -= tocopy;
-        m = m->m_next;
-      }
-
-      mp->msg_controllen = ctlbuf - mp->msg_control;
-    }
-  }
-
-  if ( from )
-    m_freem( from );
-
-  if ( control )
-    m_freem( control );
-
-  rtems_lwip_semaphore_release();
-
-  return ( ret );
+  return lwip_recvmsg( lwipfd, mp, flags );
 }
-
-#endif
 
 int setsockopt(
   int         s,
@@ -874,53 +702,18 @@ int setsockopt(
   socklen_t   len
 )
 {
-
-#if 0
-  int          lwipfd;
-  struct mbuf *m = NULL;
-  int          error;
+  int lwipfd;
 
   rtems_lwip_semaphore_obtain();
-
-  if ( ( so = rtems_lwip_sysfd_to_lwipfd( s ) ) == NULL ) {
-    rtems_lwip_semaphore_release();
-
-    return -1;
-  }
-
-  if ( len > MLEN ) {
-    errno = EINVAL;
-    rtems_lwip_semaphore_release();
-
-    return -1;
-  }
-
-  if ( val ) {
-    error = sockargstombuf( &m, val, len, MT_SOOPTS );
-
-    if ( error ) {
-      errno = error;
-      rtems_lwip_semaphore_release();
-
-      return -1;
-    }
-  }
-
-  error = sosetopt( so, level, name, m );
-
-  if ( error ) {
-    errno = error;
-    rtems_lwip_semaphore_release();
-
-    return -1;
-  }
-
+  lwipfd = rtems_lwip_sysfd_to_lwipfd( s );
   rtems_lwip_semaphore_release();
-#endif
-  return 0;
-}
 
-#if 0
+  if ( lwipfd < 0 ) {
+    return -1;
+  }
+
+  return lwip_setsockopt( lwipfd, level, name, val, len );
+}
 
 int getsockopt(
   int        s,
@@ -930,60 +723,20 @@ int getsockopt(
   socklen_t *avalsize
 )
 {
-  int          lwipfd;
-  struct mbuf *m = NULL, *m0;
-  char        *val = aval;
-  int          i, op, valsize;
-  int          error;
+  int lwipfd;
 
   rtems_lwip_semaphore_obtain();
-
-  if ( ( so = rtems_lwip_sysfd_to_lwipfd( s ) ) == NULL ) {
-    rtems_lwip_semaphore_release();
-
-    return -1;
-  }
-
-  if ( val )
-    valsize = *avalsize;
-  else
-    valsize = 0;
-
-  if ( ( ( error =
-             sogetopt( so, level, name,
-               &m ) ) == 0 ) && val && valsize && m ) {
-    op = 0;
-
-    while ( m && op < valsize ) {
-      i = valsize - op;
-
-      if ( i > m->m_len )
-        i = m->m_len;
-
-      memcpy( val, mtod( m, caddr_t ), i );
-      op += i;
-      val += i;
-      m0 = m;
-      MFREE( m0, m );
-    }
-
-    *avalsize = op;
-  }
-
-  if ( m != NULL )
-    (void) m_free( m );
-
-  if ( error ) {
-    errno = error;
-    rtems_lwip_semaphore_release();
-
-    return -1;
-  }
-
+  lwipfd = rtems_lwip_sysfd_to_lwipfd( s );
   rtems_lwip_semaphore_release();
 
-  return 0;
+  if ( lwipfd < 0 ) {
+    return -1;
+  }
+
+  return lwip_getsockopt( lwipfd, level, name, aval, avalsize );
 }
+
+#if 0
 
 static int getpeersockname(
   int              s,
@@ -1047,25 +800,18 @@ int getpeername(
   socklen_t       *namelen
 )
 {
-  int          lwipfd;
-  int          error;
+  int lwipfd;
 
   rtems_lwip_semaphore_obtain();
+  lwipfd = rtems_lwip_sysfd_to_lwipfd( s );
+  rtems_lwip_semaphore_release();
 
-  if ( ( lwipfd = rtems_lwip_sysfd_to_lwipfd( s ) ) < 0 ) {
-    rtems_lwip_semaphore_release();
-
+  if ( lwipfd < 0 ) {
     return -1;
   }
 
-  error = lwip_getpeername(lwipfd, name, namelen);
-
-  rtems_lwip_semaphore_release();
-
-  return error;
+  return lwip_getpeername(lwipfd, name, namelen);
 }
-
-#if 0
 
 int getsockname(
   int              s,
@@ -1073,8 +819,20 @@ int getsockname(
   socklen_t       *namelen
 )
 {
-  return getpeersockname( s, name, namelen, 0 );
+  int lwipfd;
+
+  rtems_lwip_semaphore_obtain();
+  lwipfd = rtems_lwip_sysfd_to_lwipfd( s );
+  rtems_lwip_semaphore_release();
+
+  if ( lwipfd < 0 ) {
+    return -1;
+  }
+
+  return lwip_getsockname( lwipfd, name, namelen );
 }
+
+#if 0
 
 int sysctl(
   const int  *name,
@@ -1115,22 +873,16 @@ int sysctl(
 static int rtems_lwip_close( rtems_libio_t *iop )
 {
   int lwipfd;
-  int ret;
 
   rtems_lwip_semaphore_obtain();
   lwipfd = rtems_lwip_iop_to_lwipfd( iop );
-
-  if ( lwipfd < 0 ) {
-    ret = -1;
-  } else {
-    rtems_lwip_semaphore_release();
-    ret = lwip_close( lwipfd );
-    rtems_lwip_semaphore_obtain();
-  }
-
   rtems_lwip_semaphore_release();
 
-  return ret;
+  if ( lwipfd < 0 ) {
+    return -1;
+  }
+
+  return lwip_close( lwipfd );
 }
 
 static ssize_t rtems_lwip_read(
@@ -1140,22 +892,16 @@ static ssize_t rtems_lwip_read(
 )
 {
   int lwipfd;
-  int ret;
 
   rtems_lwip_semaphore_obtain();
   lwipfd = rtems_lwip_iop_to_lwipfd( iop );
-
-  if ( lwipfd < 0 ) {
-    ret = -1;
-  } else {
-    rtems_lwip_semaphore_release();
-    ret = lwip_read( lwipfd, buffer, count );
-    rtems_lwip_semaphore_obtain();
-  }
-
   rtems_lwip_semaphore_release();
 
-  return ret;
+  if ( lwipfd < 0 ) {
+    return -1;
+  }
+
+  return lwip_read( lwipfd, buffer, count );
 }
 
 static ssize_t rtems_lwip_write(
@@ -1165,22 +911,16 @@ static ssize_t rtems_lwip_write(
 )
 {
   int lwipfd;
-  int ret;
 
   rtems_lwip_semaphore_obtain();
   lwipfd = rtems_lwip_iop_to_lwipfd( iop );
-
-  if ( lwipfd < 0 ) {
-    ret = -1;
-  } else {
-    rtems_lwip_semaphore_release();
-    ret = lwip_write( lwipfd, buffer, count );
-    rtems_lwip_semaphore_obtain();
-  }
-
   rtems_lwip_semaphore_release();
 
-  return ret;
+  if ( lwipfd < 0 ) {
+    return -1;
+  }
+
+  return lwip_write( lwipfd, buffer, count );
 }
 
 int so_ioctl(
@@ -1262,30 +1002,25 @@ static int rtems_lwip_fcntl(
   int            cmd
 )
 {
-#if 0
   int lwipfd;
 
-  if ( cmd == F_SETFL ) {
-    rtems_lwip_semaphore_obtain();
+  rtems_lwip_semaphore_obtain();
+  lwipfd = rtems_lwip_iop_to_lwipfd( iop );
+  rtems_lwip_semaphore_release();
 
-    if ( ( so = iop->data1 ) == NULL ) {
-      rtems_lwip_semaphore_release();
-
-      return EBADF;
-    }
-
-    if ( rtems_libio_iop_is_no_delay( iop ) )
-      so->so_state |= SS_NBIO;
-    else
-      so->so_state &= ~SS_NBIO;
-
-    rtems_lwip_semaphore_release();
+  if ( lwipfd < 0 ) {
+    return -1;
   }
 
-  return 0;
-#endif
+  /*
+   * Returning non-zero here for F_GETFL results in the call failing instead of
+   * passing back the value retrieved in the libio layer.
+   */
+  if (cmd == F_GETFL) {
+    return 0;
+  }
 
-  return -1;
+  return lwip_fcntl( lwipfd, cmd, O_NONBLOCK );
 }
 
 static int rtems_lwip_fstat(
@@ -1320,4 +1055,9 @@ static const rtems_filesystem_file_handlers_r rtems_lwip_socket_handlers = {
 const char *
 inet_ntop(int af, const void *src, char *dst, socklen_t size){
 	    return lwip_inet_ntop(af, src, dst, size);
+}
+
+int inet_pton(int af, const char *src, void *dst)
+{
+  return lwip_inet_pton(af, src, dst);
 }

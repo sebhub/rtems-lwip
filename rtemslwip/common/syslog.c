@@ -90,3 +90,9 @@ setlogmask (int pmask)
 		LogMask = pmask;
 	return (omask);
 }
+
+void
+openlog(const char *ident, int option, int facility)
+{
+	/* Do nothing */
+}

@@ -75,8 +75,8 @@ def build(bld):
     source_files.append('./uLan/ports/os/rtems/arch/sys_arch.c')
     source_files.append('./rtemslwip/common/syslog.c')
     source_files.append('./rtemslwip/common/rtems_lwip_io.c')
-    source_files.append('./rtemslwip/common/rtems_lwip_sysdefs.c')
-    
+    source_files.append('./rtemslwip/common/network_compat.c')
+
     def walk_sources(path):
         sources = []
         for root, dirs, files in os.walk(path):

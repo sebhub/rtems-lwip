@@ -36,6 +36,8 @@
 
 #define LWIP_ARP 1
 #define LWIP_NETIF_API 1
+/* Required for socketpair implementation */
+#define LWIP_NETIF_LOOPBACK 1
 #define LWIP_IPV6                       1
 #define LWIP_IPV4                       1
 #define LWIP_TIMEVAL_PRIVATE 0
