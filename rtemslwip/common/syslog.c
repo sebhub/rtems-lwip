@@ -38,6 +38,9 @@ syslog (int pri, const char *fmt, ...)
  * FIXME: Should cbuf be static?  Then we wouldn't
  *        have to worry about blowing stacks with a local variable
  *        that large.  Could make cbuf bigger, too.
+ *
+ * FIXME: This does not properly handle the %m format specifier which should
+ *        insert the string result of strerror(errno).
  */
 void
 vsyslog (int pri, const char *fmt, va_list ap)
