@@ -39,6 +39,22 @@
 #ifndef LWIP_HDR_SOCKETS_H
 #define LWIP_HDR_SOCKETS_H
 
+#ifdef __rtems__
+
+#ifdef TCP_MSS
+#define TCP_MSS_DEFINED_EARLY
+#pragma push_macro("TCP_MSS")
+#endif
+
+#include <netinet/tcp.h>
+#pragma pop_macro("TCP_MSS")
+
+#ifndef TCP_MSS_DEFINED_EARLY
+#undef TCP_MSS
+#endif
+
+#endif /* __rtems__ */
+
 #include "lwip/opt.h"
 
 #if LWIP_SOCKET /* don't build if not configured for use in lwipopts.h */
@@ -67,6 +83,10 @@ typedef u8_t sa_family_t;
 typedef u16_t in_port_t;
 #endif
 
+#ifdef __rtems__
+#include <netinet/in.h>
+#define SIN_ZERO_LEN 8
+#else
 #if LWIP_IPV4
 /* members are in network byte order */
 struct sockaddr_in {
@@ -90,7 +110,6 @@ struct sockaddr_in6 {
 };
 #endif /* LWIP_IPV6 */
 
-#ifndef __rtems__
 struct sockaddr {
   u8_t        sa_len;
   sa_family_t sa_family;
@@ -148,7 +167,6 @@ struct cmsghdr {
   int        cmsg_level; /* originating protocol */
   int        cmsg_type;  /* protocol-specific type */
 };
-#endif /* __rtems__ */
 /* Data section follows header and possible padding, typically referred to as
       unsigned char cmsg_data[]; */
 
@@ -160,7 +178,6 @@ will need to increase long long */
 #define ALIGN_H(size) (((size) + sizeof(long) - 1U) & ~(sizeof(long)-1U))
 #define ALIGN_D(size) ALIGN_H(size)
 
-#ifndef __rtems__
 #define CMSG_FIRSTHDR(mhdr) \
           ((mhdr)->msg_controllen >= sizeof(struct cmsghdr) ? \
            (struct cmsghdr *)(mhdr)->msg_control : \
@@ -255,7 +272,6 @@ struct linger {
 #define PF_INET         AF_INET
 #define PF_INET6        AF_INET6
 #define PF_UNSPEC       AF_UNSPEC
-#endif /* __rtems__ */
 
 #define IPPROTO_IP      0
 #define IPPROTO_ICMP    1
@@ -268,7 +284,6 @@ struct linger {
 #define IPPROTO_UDPLITE 136
 #define IPPROTO_RAW     255
 
-#ifndef __rtems__
 /* Flags we can use with send and recv. */
 #define MSG_PEEK       0x01    /* Peeks at an incoming message */
 #define MSG_WAITALL    0x02    /* Unimplemented: Requests that the function block until the full amount of data requested can be returned */
@@ -278,32 +293,39 @@ struct linger {
 #define MSG_MORE       0x10    /* Sender will send more */
 #ifndef __rtems__
 #define MSG_NOSIGNAL   0x20    /* Uninmplemented: Requests not to send the SIGPIPE signal if an attempt to send is made on a stream-oriented socket that is no longer connected. */
-#endif /* __rtems__ */
+
 
 /*
  * Options for level IPPROTO_IP
  */
 #define IP_TOS             1
 #define IP_TTL             2
+#endif /* __rtems__ */
 #define IP_PKTINFO         8
 
 #if LWIP_TCP
+#ifndef __rtems__
 /*
  * Options for level IPPROTO_TCP
  */
 #define TCP_NODELAY    0x01    /* don't delay send to coalesce packets */
+#endif
 #define TCP_KEEPALIVE  0x02    /* send KEEPALIVE probes when idle for pcb->keep_idle milliseconds */
+#ifndef __rtems__
 #define TCP_KEEPIDLE   0x03    /* set pcb->keep_idle  - Same as TCP_KEEPALIVE, but use seconds for get/setsockopt */
 #define TCP_KEEPINTVL  0x04    /* set pcb->keep_intvl - Use seconds for get/setsockopt */
 #define TCP_KEEPCNT    0x05    /* set pcb->keep_cnt   - Use number of probes sent for get/setsockopt */
+#endif
 #endif /* LWIP_TCP */
 
 #if LWIP_IPV6
 /*
  * Options for level IPPROTO_IPV6
  */
+#ifndef __rtems__
 #define IPV6_CHECKSUM       7  /* RFC3542: calculate and insert the ICMPv6 checksum for raw sockets. */
 #define IPV6_V6ONLY         27 /* RFC3493: boolean control to restrict AF_INET6 sockets to IPv6 communications only. */
+#endif
 #endif /* LWIP_IPV6 */
 
 #if LWIP_UDP && LWIP_UDPLITE
@@ -315,6 +337,7 @@ struct linger {
 #endif /* LWIP_UDP && LWIP_UDPLITE*/
 
 
+#ifndef __rtems__
 #if LWIP_MULTICAST_TX_OPTIONS
 /*
  * Options and types for UDP multicast traffic handling
@@ -336,6 +359,7 @@ typedef struct ip_mreq {
     struct in_addr imr_interface; /* local IP address of interface */
 } ip_mreq;
 #endif /* LWIP_IGMP */
+#endif /* __rtems__ */
 
 #if LWIP_IPV4
 struct in_pktinfo {
@@ -348,6 +372,7 @@ struct in_pktinfo {
 /*
  * Options and types related to IPv6 multicast membership
  */
+#ifndef __rtems__
 #define IPV6_JOIN_GROUP      12
 #define IPV6_ADD_MEMBERSHIP  IPV6_JOIN_GROUP
 #define IPV6_LEAVE_GROUP     13
@@ -357,6 +382,7 @@ typedef struct ipv6_mreq {
   struct in6_addr ipv6mr_multiaddr; /*  IPv6 multicast addr */
   unsigned int    ipv6mr_interface; /*  interface index, or 0 */
 } ipv6_mreq;
+#endif
 #endif /* LWIP_IPV6_MLD */
 
 /*
@@ -414,16 +440,17 @@ typedef struct ipv6_mreq {
  * to encode the in/out status of the parameter; for now
  * we restrict parameters to at most 128 bytes.
  */
+#ifdef __rtems__
+#include <sys/fcntl.h>
+#include <sys/filio.h>
+#include <sys/select.h>
+#endif
+
 #if !defined(FIONREAD) || !defined(FIONBIO)
-#undef IOCPARM_MASK
 #define IOCPARM_MASK    0x7fU           /* parameters must be < 128 bytes */
-#ifndef __rtems__
 #define IOC_VOID        0x20000000UL    /* no parameters */
 #define IOC_OUT         0x40000000UL    /* copy out parameters */
-#endif /* __rtems __ */
-#undef IOC_IN
 #define IOC_IN          0x80000000UL    /* copy in parameters */
-#ifndef __rtems__
 #define IOC_INOUT       (IOC_IN|IOC_OUT)
                                         /* 0x20000000 distinguishes new &
                                            old ioctl's */
@@ -431,8 +458,6 @@ typedef struct ipv6_mreq {
 
 #define _IOR(x,y,t)     ((long)(IOC_OUT|((sizeof(t)&IOCPARM_MASK)<<16)|((x)<<8)|(y)))
 
-#endif /* __rtems__ */
-#undef _IOW
 #define _IOW(x,y,t)     ((long)(IOC_IN|((sizeof(t)&IOCPARM_MASK)<<16)|((x)<<8)|(y)))
 #endif /* !defined(FIONREAD) || !defined(FIONBIO) */
 
@@ -679,7 +704,7 @@ int lwip_inet_pton(int af, const char *src, void *dst);
 #define poll(fds,nfds,timeout)                    lwip_poll(fds,nfds,timeout)
 #endif
 /** @ingroup socket */
-//#define ioctlsocket(s,cmd,argp)                   lwip_ioctl(s,cmd,argp)
+#define ioctlsocket(s,cmd,argp)                   lwip_ioctl(s,cmd,argp)
 /** @ingroup socket */
 #define inet_ntop(af,src,dst,size)                lwip_inet_ntop(af,src,dst,size)
 /** @ingroup socket */

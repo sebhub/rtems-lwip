@@ -55,6 +55,21 @@ extern "C" {
 typedef u32_t in_addr_t;
 #endif
 
+#ifdef __rtems__
+#include <netinet/in.h>
+#define inet_addr_from_ip4addr(target_inaddr, source_ipaddr) ((target_inaddr)->s_addr = ip4_addr_get_u32(source_ipaddr))
+#define inet_addr_to_ip4addr(target_ipaddr, source_inaddr)   (ip4_addr_set_u32(target_ipaddr, (source_inaddr)->s_addr))
+#define inet6_addr_from_ip6addr(target_in6addr, source_ip6addr) {(target_in6addr)->__u6_addr.__u6_addr32[0] = (source_ip6addr)->addr[0]; \
+                                                                 (target_in6addr)->__u6_addr.__u6_addr32[1] = (source_ip6addr)->addr[1]; \
+                                                                 (target_in6addr)->__u6_addr.__u6_addr32[2] = (source_ip6addr)->addr[2]; \
+                                                                 (target_in6addr)->__u6_addr.__u6_addr32[3] = (source_ip6addr)->addr[3];}
+#define inet6_addr_to_ip6addr(target_ip6addr, source_in6addr)   {(target_ip6addr)->addr[0] = (source_in6addr)->__u6_addr.__u6_addr32[0]; \
+                                                                 (target_ip6addr)->addr[1] = (source_in6addr)->__u6_addr.__u6_addr32[1]; \
+                                                                 (target_ip6addr)->addr[2] = (source_in6addr)->__u6_addr.__u6_addr32[2]; \
+                                                                 (target_ip6addr)->addr[3] = (source_in6addr)->__u6_addr.__u6_addr32[3]; \
+                                                                 ip6_addr_clear_zone(target_ip6addr);}
+
+#else
 struct in_addr {
   in_addr_t s_addr;
 };
@@ -161,6 +176,7 @@ extern const struct in6_addr in6addr_any;
 
 #endif /* LWIP_IPV6 */
 
+#endif /* __rtems__ */
 
 #ifdef __cplusplus
 }

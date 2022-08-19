@@ -58,6 +58,10 @@
 #define PERF_STOP(x)  /* null definition */
 #endif /* LWIP_PERF */
 
+#ifdef __rtems__
+#include <netinet/in.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -115,6 +119,10 @@ u32_t lwip_htonl(u32_t x);
 #endif /* BYTE_ORDER == BIG_ENDIAN */
 
 /* Provide usual function names as macros for users, but this can be turned off */
+#ifdef __rtems__
+#define LWIP_DONT_PROVIDE_BYTEORDER_FUNCTIONS
+#endif
+
 #ifndef LWIP_DONT_PROVIDE_BYTEORDER_FUNCTIONS
 #define htons(x) lwip_htons(x)
 #define ntohs(x) lwip_ntohs(x)
