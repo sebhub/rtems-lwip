@@ -53,6 +53,7 @@
 #undef TCP_MSS
 #endif
 
+#include <sys/socket.h>
 #endif /* __rtems__ */
 
 #include "lwip/opt.h"
@@ -64,7 +65,6 @@
 #include "lwip/err.h"
 #include "lwip/inet.h"
 #include "lwip/errno.h"
-#include <sys/socket.h>
 
 #include <string.h>
 

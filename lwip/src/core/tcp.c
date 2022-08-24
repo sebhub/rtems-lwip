@@ -724,14 +724,12 @@ tcp_bind(struct tcp_pcb *pcb, const ip_addr_t *ipaddr, u16_t port)
 #endif /* SO_REUSE */
           {
             /* @todo: check accept_any_ip_version */
-#if 0
             if ((IP_IS_V6(ipaddr) == IP_IS_V6_VAL(cpcb->local_ip)) &&
                 (ip_addr_isany(&cpcb->local_ip) ||
                  ip_addr_isany(ipaddr) ||
                  ip_addr_cmp(&cpcb->local_ip, ipaddr))) {
               return ERR_USE;
             }
-#endif /* 0 */
           }
         }
       }

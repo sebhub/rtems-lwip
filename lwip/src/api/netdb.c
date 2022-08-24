@@ -45,7 +45,6 @@
 #include "lwip/ip_addr.h"
 #include "lwip/api.h"
 #include "lwip/dns.h"
-#include "lwip/sockets.h"
 
 #include <string.h> /* memset */
 #include <stdlib.h> /* atoi */
@@ -410,46 +409,6 @@ lwip_getaddrinfo(const char *nodename, const char *servname,
   *res = ai;
 
   return 0;
-}
-
-int
-getnameinfo(const struct sockaddr *sa, socklen_t salen, char *node,
-    size_t nodelen, char *service, size_t servicelen, int flags)
-{
-    int af; 
-    const struct sockaddr_in *sa_in = (const struct sockaddr_in *)sa;
-
-    (void) salen;
-
-    af = sa->sa_family;
-    if (af != AF_INET) {
-        return EAI_FAMILY;
-    }   
-
-    if ((flags & NI_NAMEREQD) != 0) {
-        return EAI_NONAME;
-    }   
-
-    /* FIXME: This return just the address value. Try resolving instead. */
-    if (node != NULL && nodelen > 0) {
-        if (lwip_inet_ntop(af, &sa_in->sin_addr, node, nodelen) == NULL) {
-            return EAI_FAIL;
-        }
-    }   
-
-    if (service != NULL && servicelen > 0) {
-        in_port_t port = ntohs(sa_in->sin_port);
-        int rv; 
-
-        rv = snprintf(service, servicelen, "%u", port);
-        if (rv <= 0) {
-            return EAI_FAIL;
-        } else if ((unsigned)rv >= servicelen) {
-            return EAI_OVERFLOW;
-        }
-    }   
-
-    return 0;
 }
 
 #endif /* LWIP_DNS && LWIP_SOCKET */

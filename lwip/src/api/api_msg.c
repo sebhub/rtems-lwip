@@ -54,8 +54,6 @@
 #include "lwip/mld6.h"
 #include "lwip/priv/tcpip_priv.h"
 
-#include "arch/sys_arch.h"
-
 #include <string.h>
 
 /* netconns are polled once per second (e.g. continue write on memory error) */

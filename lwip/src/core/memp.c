@@ -327,7 +327,7 @@ memp_malloc_pool_fn(const struct memp_desc *desc, const char *file, const int li
 
 /**
  * Get an element from a specific pool.
-                1 *
+ *
  * @param type the pool to get an element from
  *
  * @return a pointer to the allocated memory or a NULL pointer on error

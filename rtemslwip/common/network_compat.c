@@ -29,6 +29,8 @@
 #include <arpa/inet.h>
 #include <lwip/ip4_addr.h>
 #include <lwip/ip6_addr.h>
+#include <lwip/sockets.h>
+#include <lwip/netdb.h>
 
 in_addr_t inet_addr(const char *cp)
 {
@@ -54,4 +56,44 @@ char *inet_ntoa_r(struct in_addr addr, char *buf, socklen_t buflen)
 uint16_t htons(uint16_t x)
 {
   return lwip_htons(x);
+}
+
+int
+getnameinfo(const struct sockaddr *sa, socklen_t salen, char *node,
+    size_t nodelen, char *service, size_t servicelen, int flags)
+{
+    int af;
+    const struct sockaddr_in *sa_in = (const struct sockaddr_in *)sa;
+
+    (void) salen;
+
+    af = sa->sa_family;
+    if (af != AF_INET) {
+        return EAI_FAMILY;
+    }
+
+    if ((flags & NI_NAMEREQD) != 0) {
+        return EAI_NONAME;
+    }
+
+    /* FIXME: This return just the address value. Try resolving instead. */
+    if (node != NULL && nodelen > 0) {
+        if (lwip_inet_ntop(af, &sa_in->sin_addr, node, nodelen) == NULL) {
+            return EAI_FAIL;
+        }
+    }
+
+    if (service != NULL && servicelen > 0) {
+        in_port_t port = ntohs(sa_in->sin_port);
+        int rv;
+
+        rv = snprintf(service, servicelen, "%u", port);
+        if (rv <= 0) {
+            return EAI_FAIL;
+        } else if ((unsigned)rv >= servicelen) {
+            return EAI_OVERFLOW;
+        }
+    }
+
+    return 0;
 }

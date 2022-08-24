@@ -923,8 +923,10 @@
 #define LWIP_DHCP                       0
 #endif /* !LWIP_IPV4 */
 
+#ifdef __rtems__
 #ifndef LWIP_DHCP_TIMEOUT
 #define LWIP_DHCP_TIMEOUT               100
+#endif
 #endif
 
 /**
