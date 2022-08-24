@@ -28,7 +28,7 @@ from __future__ import print_function
 import os
 import sys
 import getopt
-import yaml
+import json
 from shutil import copyfile
 from pathlib import Path
 
@@ -87,8 +87,7 @@ print("Direction:                   %s" % (("reverse", "forward")[isForward]))
 
 def copyFiles(isforward):
     if (isforward):
-        config_file = open('file-import.yaml', 'r').read()
-        files = yaml.full_load(config_file)
+        files = json.load(open('file-import.json', 'r'))
         src_dir = os.path.abspath(LWIP_UPSTREAM_DIR)
         print("Files Imported:")
         for f in files['files-to-import']:

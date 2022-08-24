@@ -26,7 +26,7 @@
 #  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from rtems_waf import rtems
-import yaml
+import json
 import os
 
 xilinx_drv_incl = ''
@@ -66,8 +66,8 @@ def build(bld):
 
     arch_lib_path = rtems.arch_bsp_lib_path(bld.env.RTEMS_VERSION,
                                             bld.env.RTEMS_ARCH_BSP)
-    with open('file-import.yaml', 'r') as cf:
-        files = yaml.full_load(cf.read())
+    with open('file-import.json', 'r') as cf:
+        files = json.load(cf)
         for f in files['files-to-import']:
             if f[-2:] == '.c':
                 source_files.append(os.path.join('./lwip', f))
