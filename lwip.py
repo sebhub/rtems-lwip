@@ -180,6 +180,7 @@ def add_flags(flags, new_flags):
             flags.append(flag)
 
 def bsp_configure(conf, arch_bsp):
+    conf.env.LIB += ['m']
     section_flags = ["-fdata-sections", "-ffunction-sections"]
     add_flags(conf.env.CFLAGS, section_flags)
     add_flags(conf.env.CXXFLAGS, section_flags)
