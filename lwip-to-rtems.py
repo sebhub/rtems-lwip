@@ -86,8 +86,8 @@ print("Direction:                   %s" % (("reverse", "forward")[isForward]))
 
 
 def copyFiles(isforward):
+    files = json.load(open('file-import.json', 'r'))
     if (isforward):
-        files = json.load(open('file-import.json', 'r'))
         src_dir = os.path.abspath(LWIP_UPSTREAM_DIR)
         print("Files Imported:")
         for f in files['files-to-import']:
@@ -95,10 +95,14 @@ def copyFiles(isforward):
             dst_file = os.path.join(dst_dir, f.split('/')[-1])
             if not os.path.exists(dst_dir):
                 os.makedirs(dst_dir)
-            if not os.path.exists(dst_file):
-                Path(dst_file).touch()
-                print(dst_file)
-                copyfile(str(os.path.join(src_dir, f)),
-                         str(dst_file))
+            Path(dst_file).touch()
+            print(dst_file)
+            copyfile(str(os.path.join(src_dir, f)),
+                     str(dst_file))
+    else:
+        for f in files['files-to-import']:
+            src_file = os.path.join(os.path.abspath(LWIP_DIR), f)
+            dst_file = os.path.join(os.path.abspath(LWIP_UPSTREAM_DIR), f)
+            copyfile(str(src_file), str(dst_file))
 
 copyFiles(isForward)
