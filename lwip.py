@@ -29,6 +29,11 @@ from rtems_waf import rtems
 import json
 import os
 
+def removeprefix(data, prefix):
+    if data.startswith(prefix):
+        return data[len(prefix):]
+    return data
+
 xilinx_drv_incl = ''
 xilinx_drv_incl += './embeddedsw/ThirdParty/sw_services/lwip211/src/contrib/ports/xilinx/include '
 xilinx_drv_incl += './embeddedsw/lib/bsp/standalone/src/common '
@@ -146,7 +151,7 @@ def build(bld):
                 src_root = os.path.split(root)
                 path = os.path.join(src_root[0], src_root[1])
                 if ext == '.h':
-                    subpath = path.removeprefix(root_path).removeprefix("/")
+                    subpath = removeprefix(removeprefix(path, root_path), "/")
                     bld.install_files("${PREFIX}/" + arch_lib_path + "/include/" + subpath,
                         os.path.join(path,name))
 
