@@ -31,6 +31,7 @@
 
 #define NO_SYS 0
 #define LWIP_SOCKET                     1
+#define SO_REUSE 1
 #define LWIP_COMPAT_SOCKETS 1
 #define LWIP_NETCONN 1
 
@@ -48,7 +49,8 @@
 #define MEM_ALIGNMENT           64
 #define MEM_SIZE                2 * 1024 * 1024
 #define MEMP_NUM_PBUF           32
-#define MEMP_NUM_UDP_PCB        4
+#define MEMP_NUM_NETCONN        16
+#define MEMP_NUM_UDP_PCB        16
 #define MEMP_NUM_TCP_PCB        32
 #define MEMP_NUM_TCP_PCB_LISTEN 8
 #define MEMP_NUM_TCP_SEG        256
@@ -114,6 +116,7 @@
 #define CONFIG_LINKSPEED_AUTODETECT 1
 #define TCPIP_MBOX_SIZE                 20
 #define DEFAULT_TCP_RECVMBOX_SIZE       20
+#define DEFAULT_UDP_RECVMBOX_SIZE       20
 #define DEFAULT_ACCEPTMBOX_SIZE         5
 
 #define tskIDLE_PRIORITY RTEMS_MAXIMUM_PRIORITY
