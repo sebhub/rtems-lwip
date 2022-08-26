@@ -68,6 +68,12 @@ def build(bld):
     common_includes = './lwip/src/include ./uLan/ports/os/rtems ./rtemslwip/include '
     driver_source = []
     drv_incl = ' '
+    bsd_compat_sources = [
+        "rtemslwip/bsd_compat/netdb.c",
+        "rtemslwip/bsd_compat/ifaddrs.c",
+        "rtemslwip/bsd_compat/rtems-kernel-program.c"
+    ]
+    bsd_compat_incl = './rtemslwip/bsd_compat_include '
 
     arch_lib_path = rtems.arch_bsp_lib_path(bld.env.RTEMS_VERSION,
                                             bld.env.RTEMS_ARCH_BSP)
@@ -81,6 +87,7 @@ def build(bld):
     source_files.append('./rtemslwip/common/syslog.c')
     source_files.append('./rtemslwip/common/rtems_lwip_io.c')
     source_files.append('./rtemslwip/common/network_compat.c')
+    source_files.extend(bsd_compat_sources)
 
     def walk_sources(path):
         sources = []
@@ -128,7 +135,7 @@ def build(bld):
     bld(features ='c',
         target='lwip_obj',
         cflags='-g -Wall -O0',
-        includes=drv_incl + common_includes,
+        includes=drv_incl + bsd_compat_incl + common_includes,
         source=source_files,
         )
 
@@ -155,7 +162,9 @@ def build(bld):
                     bld.install_files("${PREFIX}/" + arch_lib_path + "/include/" + subpath,
                         os.path.join(path,name))
 
-    [install_headers(path) for path in (drv_incl + common_includes).split(' ')[:-1]]
+    [install_headers(path) for path in common_includes.split(' ')[:-1]]
+    [install_headers(path) for path in drv_incl.split(' ')[:-1]]
+    [install_headers(path) for path in bsd_compat_incl.split(' ')[:-1]]
 
     bld.program(features='c',
                 target='networking01.exe',
