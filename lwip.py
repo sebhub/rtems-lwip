@@ -36,52 +36,67 @@ def removeprefix(data, prefix):
     return data
 
 
-xilinx_lwip_prefix = 'embeddedsw/ThirdParty/sw_services/lwip211/'
+xilinx_lwip_prefix = 'embeddedsw/ThirdParty/sw_services/lwip211/src/contrib/'
+xilinx_standalone_prefix = 'embeddedsw/lib/bsp/standalone/src/'
 
-xilinx_drv_incl = ''
-xilinx_drv_incl += xilinx_lwip_prefix + 'src/contrib/ports/xilinx/include '
-xilinx_drv_incl += 'embeddedsw/lib/bsp/standalone/src/common '
-xilinx_drv_incl += 'embeddedsw/XilinxProcessorIPLib/drivers/common/src/ '
-xilinx_drv_incl += 'embeddedsw/XilinxProcessorIPLib/drivers/scugic/src '
-xilinx_drv_incl += 'embeddedsw/XilinxProcessorIPLib/drivers/emacps/src '
-xilinx_drv_incl += 'rtemslwip/xilinx '
+xilinx_drv_incl = [
+    xilinx_lwip_prefix + 'ports/xilinx/include',
+    xilinx_standalone_prefix + 'common',
+    'embeddedsw/XilinxProcessorIPLib/drivers/common/src/',
+    'embeddedsw/XilinxProcessorIPLib/drivers/scugic/src',
+    'embeddedsw/XilinxProcessorIPLib/drivers/emacps/src',
+    'rtemslwip/xilinx'
+]
 
-xilinx_aarch64_drv_incl = ''
-xilinx_aarch64_drv_incl += 'rtemslwip/zynqmp '
-xilinx_aarch64_drv_incl += 'embeddedsw/lib/bsp/standalone/src/arm/ARMv8/64bit '
-xilinx_aarch64_drv_incl += 'embeddedsw/lib/bsp/standalone/src/arm/common/gcc '
-xilinx_aarch64_drv_incl += 'embeddedsw/lib/bsp/standalone/src/arm/common '
+xilinx_aarch64_drv_incl = [
+    'rtemslwip/zynqmp',
+    xilinx_standalone_prefix + 'arm/ARMv8/64bit',
+    xilinx_standalone_prefix + 'arm/common/gcc',
+    xilinx_standalone_prefix + 'arm/common'
+]
 
 # These sources are explicitly listed instead of using walk_sources below
 # because multiple BSPs of varying architecture are expected to use code from
 # the embeddedsw repository.
 xilinx_aarch64_driver_source = [
-    xilinx_lwip_prefix + 'src/contrib/ports/xilinx/netif/xadapter.c',
-    xilinx_lwip_prefix + 'src/contrib/ports/xilinx/netif/xpqueue.c',
-    xilinx_lwip_prefix + 'src/contrib/ports/xilinx/netif/xemacpsif.c',
-    xilinx_lwip_prefix + 'src/contrib/ports/xilinx/netif/xemacpsif_dma.c',
-    xilinx_lwip_prefix + 'src/contrib/ports/xilinx/netif/xemacpsif_hw.c',
-    xilinx_lwip_prefix + 'src/contrib/ports/xilinx/netif/xemacpsif_physpeed.c',
+    xilinx_lwip_prefix + 'ports/xilinx/netif/xadapter.c',
+    xilinx_lwip_prefix + 'ports/xilinx/netif/xpqueue.c',
+    xilinx_lwip_prefix + 'ports/xilinx/netif/xemacpsif.c',
+    xilinx_lwip_prefix + 'ports/xilinx/netif/xemacpsif_dma.c',
+    xilinx_lwip_prefix + 'ports/xilinx/netif/xemacpsif_hw.c',
+    xilinx_lwip_prefix + 'ports/xilinx/netif/xemacpsif_physpeed.c',
     'embeddedsw/XilinxProcessorIPLib/drivers/emacps/src/xemacps_bdring.c',
     'embeddedsw/XilinxProcessorIPLib/drivers/emacps/src/xemacps.c',
     'embeddedsw/XilinxProcessorIPLib/drivers/emacps/src/xemacps_control.c',
     'embeddedsw/XilinxProcessorIPLib/drivers/emacps/src/xemacps_intr.c',
-    'embeddedsw/lib/bsp/standalone/src/common/xil_assert.c'
+    xilinx_standalone_prefix + 'common/xil_assert.c'
+]
+
+common_includes = [
+    'lwip/src/include',
+    'uLan/ports/os/rtems',
+    'rtemslwip/include'
+]
+
+bsd_compat_incl = [
+    'rtemslwip/bsd_compat_include'
+]
+
+common_source_files = [
+    'uLan/ports/os/rtems/arch/sys_arch.c',
+    'rtemslwip/common/syslog.c',
+    'rtemslwip/common/rtems_lwip_io.c',
+    'rtemslwip/common/network_compat.c',
+    'rtemslwip/bsd_compat/netdb.c',
+    'rtemslwip/bsd_compat/ifaddrs.c',
+    'rtemslwip/bsd_compat/rtems-kernel-program.c'
 ]
 
 
 def build(bld):
     source_files = []
-    common_includes = 'lwip/src/include uLan/ports/os/rtems rtemslwip/include '
     driver_source = []
-    drv_incl = ' '
-    bsd_compat_sources = [
-        "rtemslwip/bsd_compat/netdb.c",
-        "rtemslwip/bsd_compat/ifaddrs.c",
-        "rtemslwip/bsd_compat/rtems-kernel-program.c"
-    ]
-    bsd_compat_incl = 'rtemslwip/bsd_compat_include '
-
+    drv_incl = []
     arch_lib_path = rtems.arch_bsp_lib_path(bld.env.RTEMS_VERSION,
                                             bld.env.RTEMS_ARCH_BSP)
     with open('file-import.json', 'r') as cf:
@@ -90,11 +105,7 @@ def build(bld):
             if f[-2:] == '.c':
                 source_files.append(os.path.join('lwip', f))
 
-    source_files.append('uLan/ports/os/rtems/arch/sys_arch.c')
-    source_files.append('rtemslwip/common/syslog.c')
-    source_files.append('rtemslwip/common/rtems_lwip_io.c')
-    source_files.append('rtemslwip/common/network_compat.c')
-    source_files.extend(bsd_compat_sources)
+    source_files.extend(common_source_files)
 
     def walk_sources(path):
         sources = []
@@ -109,13 +120,15 @@ def build(bld):
 
     # These files will not compile for BSPs other than TMS570
     if bld.env.RTEMS_ARCH_BSP.startswith('arm-rtems6-tms570ls3137_hdk'):
-        drv_incl += 'uLan/ports/driver/tms570_emac uLan/ports/os '
+        drv_incl.append('uLan/ports/driver/tms570_emac')
+        drv_incl.append('uLan/ports/os')
         driver_source.extend(walk_sources('uLan/ports/driver/tms570_emac'))
 
     # These files will only compile for BeagleBone BSPs
     if bld.env.RTEMS_ARCH_BSP.startswith('arm-rtems6-beaglebone'):
         driver_source.extend(walk_sources('rtemslwip/beaglebone'))
-        drv_incl += 'rtemslwip/beaglebone cpsw/src/include '
+        drv_incl.append('rtemslwip/beaglebone')
+        drv_incl.append('cpsw/src/include')
         driver_source.extend(walk_sources('cpsw/src'))
 
     # These files will only compile for BSPs on Xilinx hardware
@@ -128,7 +141,7 @@ def build(bld):
     if bld.env.RTEMS_ARCH_BSP.endswith('_qemu'):
         is_qemu = True
     if is_xilinx_bsp:
-        drv_incl += xilinx_drv_incl
+        drv_incl.extend(xilinx_drv_incl)
         if is_aarch64_bsp:
             driver_source.extend(walk_sources('rtemslwip/zynqmp'))
             if is_qemu:
@@ -136,23 +149,31 @@ def build(bld):
             else:
                 driver_source.extend(walk_sources('rtemslwip/zynqmp_hardware'))
             driver_source.extend(xilinx_aarch64_driver_source)
-            drv_incl += xilinx_aarch64_drv_incl
+            drv_incl.extend(xilinx_aarch64_drv_incl)
+
+    lwip_obj_incl = []
+    lwip_obj_incl.extend(drv_incl)
+    lwip_obj_incl.extend(bsd_compat_incl)
+    lwip_obj_incl.extend(common_includes)
 
     bld(features='c',
         target='lwip_obj',
         cflags='-g -Wall -O0',
-        includes=drv_incl + bsd_compat_incl + common_includes,
+        includes=' '.join(lwip_obj_incl),
         source=source_files,
         )
 
-    drv_obj_incl = drv_incl + common_includes
-    drv_obj_incl += os.path.relpath(
+    drv_obj_incl = []
+    drv_obj_incl.extend(drv_incl)
+    drv_obj_incl.extend(common_includes)
+    drv_obj_incl.append(os.path.relpath(
         os.path.join(bld.env.PREFIX, arch_lib_path, 'include')
-    )
+    ))
+
     bld(features='c',
         target='driver_obj',
         cflags='-g -Wall -O0',
-        includes=drv_obj_incl,
+        includes=' '.join(drv_obj_incl),
         source=driver_source,
         )
     bld(features='c cstlib',
@@ -174,19 +195,24 @@ def build(bld):
                         os.path.join(path, name)
                     )
 
-    [install_headers(path) for path in common_includes.split(' ')[:-1]]
-    [install_headers(path) for path in drv_incl.split(' ')[:-1]]
-    [install_headers(path) for path in bsd_compat_incl.split(' ')[:-1]]
+    [install_headers(path) for path in common_includes]
+    [install_headers(path) for path in drv_incl]
+    [install_headers(path) for path in bsd_compat_incl]
 
-    test_app_incl = drv_incl + common_includes + 'rtemslwip/test/ '
-    test_app_incl += os.path.relpath(os.path.join(arch_lib_path, 'include'))
+    test_app_incl = []
+    test_app_incl.extend(drv_incl)
+    test_app_incl.extend(common_includes)
+    test_app_incl.append('rtemslwip/test/')
+    test_app_incl.append(
+        os.path.relpath(os.path.join(arch_lib_path, 'include'))
+    )
     bld.program(features='c',
                 target='networking01.exe',
                 source='rtemslwip/test/networking01/sample_app.c',
                 cflags='-g -Wall -O0',
                 use='lwip',
                 lib=['rtemscpu', 'rtemsbsp', 'rtemstest', 'lwip'],
-                includes=test_app_incl)
+                includes=' '.join(test_app_incl))
 
     arch_lib_path = rtems.arch_bsp_lib_path(bld.env.RTEMS_VERSION,
                                             bld.env.RTEMS_ARCH_BSP)
@@ -200,7 +226,7 @@ def build(bld):
                 source='rtemslwip/test/telnetd01/init.c',
                 use='telnetd lwip rtemstest ftpd',
                 cflags='-g -Wall -O0',
-                includes=test_app_incl)
+                includes=' '.join(test_app_incl))
 
 
 def add_flags(flags, new_flags):
