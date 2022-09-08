@@ -46,14 +46,14 @@
 extern "C" {
 #endif
 
-#ifdef __rtems__
-#include <netdb.h>
-#else
 /* some rarely used options */
 #ifndef LWIP_DNS_API_DECLARE_H_ERRNO
 #define LWIP_DNS_API_DECLARE_H_ERRNO  1
 #endif
 
+#ifdef __rtems__
+#include <netdb.h>
+#else
 #ifndef LWIP_DNS_API_DEFINE_ERRORS
 #define LWIP_DNS_API_DEFINE_ERRORS    1
 #endif
