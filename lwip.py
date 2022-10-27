@@ -99,6 +99,8 @@ def build(bld):
     drv_incl = []
     arch_lib_path = rtems.arch_bsp_lib_path(bld.env.RTEMS_VERSION,
                                             bld.env.RTEMS_ARCH_BSP)
+    arch = rtems.arch(bld.env.RTEMS_ARCH_BSP)
+    bsp = rtems.bsp(bld.env.RTEMS_ARCH_BSP)
     with open('file-import.json', 'r') as cf:
         files = json.load(cf)
         for f in files['files-to-import']:
@@ -118,27 +120,33 @@ def build(bld):
                     sources.append(os.path.join(path, name))
         return sources
 
-    # These files will not compile for BSPs other than TMS570
-    if bld.env.RTEMS_ARCH_BSP.startswith('arm-rtems6-tms570ls3137_hdk'):
-        drv_incl.append('uLan/ports/driver/tms570_emac')
-        drv_incl.append('uLan/ports/os')
-        driver_source.extend(walk_sources('uLan/ports/driver/tms570_emac'))
+    if arch == 'arm':
+        # These files will not compile for BSPs other than TMS570
+        if bsp in ['tms570ls3137_hdk', 'tms570ls3137_hdk_intram',
+                   'tms570ls3137_hdk_sdram', 'tms570ls3137_hdk_with_loader']:
+            drv_incl.append('uLan/ports/driver/tms570_emac')
+            drv_incl.append('uLan/ports/os')
+            driver_source.extend(walk_sources('uLan/ports/driver/tms570_emac'))
 
-    # These files will only compile for BeagleBone BSPs
-    if bld.env.RTEMS_ARCH_BSP.startswith('arm-rtems6-beaglebone'):
-        driver_source.extend(walk_sources('rtemslwip/beaglebone'))
-        drv_incl.append('rtemslwip/beaglebone')
-        drv_incl.append('cpsw/src/include')
-        driver_source.extend(walk_sources('cpsw/src'))
+        # These files will only compile for BeagleBone BSPs
+        if bsp in ['beagleboneblack', 'beaglebonewhite']:
+            driver_source.extend(walk_sources('rtemslwip/beaglebone'))
+            drv_incl.append('rtemslwip/beaglebone')
+            drv_incl.append('cpsw/src/include')
+            driver_source.extend(walk_sources('cpsw/src'))
+
 
     # These files will only compile for BSPs on Xilinx hardware
     is_xilinx_bsp = False
     is_aarch64_bsp = False
     is_qemu = False
-    if bld.env.RTEMS_ARCH_BSP.startswith('aarch64-rtems6-xilinx_zynqmp'):
+    if arch == 'aarch64' and bsp in ['xilinx_zynqmp_lp64_qemu',
+                                     'xilinx_zynqmp_lp64_zu3eg',
+                                     'xilinx_zynqmp_ilp32_qemu',
+                                     'xilinx_zynqmp_ilp32_zu3eg']:
         is_xilinx_bsp = True
         is_aarch64_bsp = True
-    if bld.env.RTEMS_ARCH_BSP.endswith('_qemu'):
+    if bsp in ['xilinx_zynqmp_lp64_qemu', 'xilinx_zynqmp_ilp32_qemu']:
         is_qemu = True
     if is_xilinx_bsp:
         drv_incl.extend(xilinx_drv_incl)
