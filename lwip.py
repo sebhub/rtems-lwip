@@ -110,15 +110,7 @@ def build(bld):
     source_files.extend(common_source_files)
 
     def walk_sources(path):
-        sources = []
-        for root, dirs, files in os.walk(path):
-            for name in files:
-                ext = os.path.splitext(name)[1]
-                src_root = os.path.split(root)
-                path = os.path.join(src_root[0], src_root[1])
-                if ext == '.c' or ext == '.S':
-                    sources.append(os.path.join(path, name))
-        return sources
+        return bld.path.ant_glob([path + '/**/*.c', path + '/**/*.S'])
 
     if arch == 'arm':
         # These files will not compile for BSPs other than TMS570
