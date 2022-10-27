@@ -214,8 +214,6 @@ def build(bld):
                 lib=['rtemscpu', 'rtemsbsp', 'rtemstest', 'lwip'],
                 includes=' '.join(test_app_incl))
 
-    arch_lib_path = rtems.arch_bsp_lib_path(bld.env.RTEMS_VERSION,
-                                            bld.env.RTEMS_ARCH_BSP)
     lib_path = os.path.join(bld.env.PREFIX, arch_lib_path)
     bld.read_stlib('telnetd', paths=[lib_path])
     bld.read_stlib('rtemstest', paths=[lib_path])
