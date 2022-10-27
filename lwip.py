@@ -166,9 +166,6 @@ def build(bld):
     drv_obj_incl = []
     drv_obj_incl.extend(drv_incl)
     drv_obj_incl.extend(common_includes)
-    drv_obj_incl.append(os.path.relpath(
-        os.path.join(bld.env.PREFIX, arch_lib_path, 'include')
-    ))
 
     bld(features='c',
         target='driver_obj',
@@ -203,9 +200,6 @@ def build(bld):
     test_app_incl.extend(drv_incl)
     test_app_incl.extend(common_includes)
     test_app_incl.append('rtemslwip/test/')
-    test_app_incl.append(
-        os.path.relpath(os.path.join(arch_lib_path, 'include'))
-    )
     bld.program(features='c',
                 target='networking01.exe',
                 source='rtemslwip/test/networking01/sample_app.c',
