@@ -1,0 +1,9 @@
+{
+	"header-paths-to-import": [
+		"uLan/ports/driver/tms570_emac",
+		"uLan/ports/os"
+	],
+	"source-paths-to-import": [
+		"uLan/ports/driver/tms570_emac"
+	]
+}

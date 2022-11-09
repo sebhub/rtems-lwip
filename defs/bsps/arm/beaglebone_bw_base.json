@@ -1,0 +1,10 @@
+{
+	"header-paths-to-import": [
+		"rtemslwip/beaglebone",
+		"cpsw/src/include"
+	],
+	"source-paths-to-import": [
+		"rtemslwip/beaglebone",
+		"cpsw/src"
+	]
+}

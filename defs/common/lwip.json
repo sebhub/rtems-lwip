@@ -1,0 +1,17 @@
+{
+	"header-paths-to-import": [
+		"rtemslwip/bsd_compat_include",
+		"lwip/src/include",
+		"uLan/ports/os/rtems",
+		"rtemslwip/include"
+	],
+	"source-files-to-import" : [
+		"uLan/ports/os/rtems/arch/sys_arch.c",
+		"rtemslwip/common/syslog.c",
+		"rtemslwip/common/rtems_lwip_io.c",
+		"rtemslwip/common/network_compat.c",
+		"rtemslwip/bsd_compat/netdb.c",
+		"rtemslwip/bsd_compat/ifaddrs.c",
+		"rtemslwip/bsd_compat/rtems-kernel-program.c"
+	]
+}

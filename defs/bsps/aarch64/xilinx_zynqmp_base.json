@@ -1,0 +1,30 @@
+{
+	"header-paths-to-import": [
+		"embeddedsw/ThirdParty/sw_services/lwip211/src/contrib/ports/xilinx/include",
+		"embeddedsw/lib/bsp/standalone/src/common",
+		"embeddedsw/XilinxProcessorIPLib/drivers/common/src/",
+		"embeddedsw/XilinxProcessorIPLib/drivers/scugic/src",
+		"embeddedsw/XilinxProcessorIPLib/drivers/emacps/src",
+		"rtemslwip/xilinx",
+		"rtemslwip/zynqmp",
+		"embeddedsw/lib/bsp/standalone/src/arm/ARMv8/64bit",
+		"embeddedsw/lib/bsp/standalone/src/arm/common/gcc",
+		"embeddedsw/lib/bsp/standalone/src/arm/common"
+	],
+	"source-paths-to-import": [
+		"rtemslwip/zynqmp"
+	],
+	"source-files-to-import": [
+		"embeddedsw/ThirdParty/sw_services/lwip211/src/contrib/ports/xilinx/netif/xadapter.c",
+		"embeddedsw/ThirdParty/sw_services/lwip211/src/contrib/ports/xilinx/netif/xpqueue.c",
+		"embeddedsw/ThirdParty/sw_services/lwip211/src/contrib/ports/xilinx/netif/xemacpsif.c",
+		"embeddedsw/ThirdParty/sw_services/lwip211/src/contrib/ports/xilinx/netif/xemacpsif_dma.c",
+		"embeddedsw/ThirdParty/sw_services/lwip211/src/contrib/ports/xilinx/netif/xemacpsif_hw.c",
+		"embeddedsw/ThirdParty/sw_services/lwip211/src/contrib/ports/xilinx/netif/xemacpsif_physpeed.c",
+		"embeddedsw/XilinxProcessorIPLib/drivers/emacps/src/xemacps_bdring.c",
+		"embeddedsw/XilinxProcessorIPLib/drivers/emacps/src/xemacps.c",
+		"embeddedsw/XilinxProcessorIPLib/drivers/emacps/src/xemacps_control.c",
+		"embeddedsw/XilinxProcessorIPLib/drivers/emacps/src/xemacps_intr.c",
+		"embeddedsw/lib/bsp/standalone/src/common/xil_assert.c"
+	]
+}

@@ -36,63 +36,6 @@ def removeprefix(data, prefix):
     return data
 
 
-xilinx_lwip_prefix = 'embeddedsw/ThirdParty/sw_services/lwip211/src/contrib/'
-xilinx_standalone_prefix = 'embeddedsw/lib/bsp/standalone/src/'
-
-xilinx_drv_incl = [
-    xilinx_lwip_prefix + 'ports/xilinx/include',
-    xilinx_standalone_prefix + 'common',
-    'embeddedsw/XilinxProcessorIPLib/drivers/common/src/',
-    'embeddedsw/XilinxProcessorIPLib/drivers/scugic/src',
-    'embeddedsw/XilinxProcessorIPLib/drivers/emacps/src',
-    'rtemslwip/xilinx'
-]
-
-xilinx_aarch64_drv_incl = [
-    'rtemslwip/zynqmp',
-    xilinx_standalone_prefix + 'arm/ARMv8/64bit',
-    xilinx_standalone_prefix + 'arm/common/gcc',
-    xilinx_standalone_prefix + 'arm/common'
-]
-
-# These sources are explicitly listed instead of using walk_sources below
-# because multiple BSPs of varying architecture are expected to use code from
-# the embeddedsw repository.
-xilinx_aarch64_driver_source = [
-    xilinx_lwip_prefix + 'ports/xilinx/netif/xadapter.c',
-    xilinx_lwip_prefix + 'ports/xilinx/netif/xpqueue.c',
-    xilinx_lwip_prefix + 'ports/xilinx/netif/xemacpsif.c',
-    xilinx_lwip_prefix + 'ports/xilinx/netif/xemacpsif_dma.c',
-    xilinx_lwip_prefix + 'ports/xilinx/netif/xemacpsif_hw.c',
-    xilinx_lwip_prefix + 'ports/xilinx/netif/xemacpsif_physpeed.c',
-    'embeddedsw/XilinxProcessorIPLib/drivers/emacps/src/xemacps_bdring.c',
-    'embeddedsw/XilinxProcessorIPLib/drivers/emacps/src/xemacps.c',
-    'embeddedsw/XilinxProcessorIPLib/drivers/emacps/src/xemacps_control.c',
-    'embeddedsw/XilinxProcessorIPLib/drivers/emacps/src/xemacps_intr.c',
-    xilinx_standalone_prefix + 'common/xil_assert.c'
-]
-
-common_includes = [
-    'lwip/src/include',
-    'uLan/ports/os/rtems',
-    'rtemslwip/include'
-]
-
-bsd_compat_incl = [
-    'rtemslwip/bsd_compat_include'
-]
-
-common_source_files = [
-    'uLan/ports/os/rtems/arch/sys_arch.c',
-    'rtemslwip/common/syslog.c',
-    'rtemslwip/common/rtems_lwip_io.c',
-    'rtemslwip/common/network_compat.c',
-    'rtemslwip/bsd_compat/netdb.c',
-    'rtemslwip/bsd_compat/ifaddrs.c',
-    'rtemslwip/bsd_compat/rtems-kernel-program.c'
-]
-
-
 def build(bld):
     source_files = []
     driver_source = []
@@ -101,59 +44,48 @@ def build(bld):
                                             bld.env.RTEMS_ARCH_BSP)
     arch = rtems.arch(bld.env.RTEMS_ARCH_BSP)
     bsp = rtems.bsp(bld.env.RTEMS_ARCH_BSP)
+
+    # file-import.json is kept separate from the rest of the defs because it
+    # describes which files are imported from upstream lwip
     with open('file-import.json', 'r') as cf:
         files = json.load(cf)
         for f in files['files-to-import']:
             if f[-2:] == '.c':
                 source_files.append(os.path.join('lwip', f))
 
-    source_files.extend(common_source_files)
-
     def walk_sources(path):
         return bld.path.ant_glob([path + '/**/*.c', path + '/**/*.S'])
 
-    if arch == 'arm':
-        # These files will not compile for BSPs other than TMS570
-        if bsp in ['tms570ls3137_hdk', 'tms570ls3137_hdk_intram',
-                   'tms570ls3137_hdk_sdram', 'tms570ls3137_hdk_with_loader']:
-            drv_incl.append('uLan/ports/driver/tms570_emac')
-            drv_incl.append('uLan/ports/os')
-            driver_source.extend(walk_sources('uLan/ports/driver/tms570_emac'))
+    def import_json_definition(prefix, path):
+        sources = []
+        includes = []
+        with open(os.path.join(prefix, path), 'r') as bspconfig:
+            files = json.load(bspconfig)
+            if 'includes' in files:
+                for f in files['includes']:
+                    tmpsrc, tmpincl = import_json_definition(prefix, f+'.json')
+                    sources.extend(tmpsrc)
+                    includes.extend(tmpincl)
+            if 'source-files-to-import' in files:
+                sources.extend(files['source-files-to-import'])
+            if 'source-paths-to-import' in files:
+                for f in files['source-paths-to-import']:
+                    sources.extend(walk_sources(f))
+            if 'header-paths-to-import' in files:
+                includes.extend(files['header-paths-to-import'])
+        return (sources, includes)
 
-        # These files will only compile for BeagleBone BSPs
-        if bsp in ['beagleboneblack', 'beaglebonewhite']:
-            driver_source.extend(walk_sources('rtemslwip/beaglebone'))
-            drv_incl.append('rtemslwip/beaglebone')
-            drv_incl.append('cpsw/src/include')
-            driver_source.extend(walk_sources('cpsw/src'))
+    # import additional lwip source
+    more_lwip_sources, common_includes = import_json_definition(
+        'defs/common', 'lwip.json')
+    source_files.extend(more_lwip_sources)
 
-
-    # These files will only compile for BSPs on Xilinx hardware
-    is_xilinx_bsp = False
-    is_aarch64_bsp = False
-    is_qemu = False
-    if arch == 'aarch64' and bsp in ['xilinx_zynqmp_lp64_qemu',
-                                     'xilinx_zynqmp_lp64_zu3eg',
-                                     'xilinx_zynqmp_ilp32_qemu',
-                                     'xilinx_zynqmp_ilp32_zu3eg']:
-        is_xilinx_bsp = True
-        is_aarch64_bsp = True
-    if bsp in ['xilinx_zynqmp_lp64_qemu', 'xilinx_zynqmp_ilp32_qemu']:
-        is_qemu = True
-    if is_xilinx_bsp:
-        drv_incl.extend(xilinx_drv_incl)
-        if is_aarch64_bsp:
-            driver_source.extend(walk_sources('rtemslwip/zynqmp'))
-            if is_qemu:
-                driver_source.extend(walk_sources('rtemslwip/zynqmp_qemu'))
-            else:
-                driver_source.extend(walk_sources('rtemslwip/zynqmp_hardware'))
-            driver_source.extend(xilinx_aarch64_driver_source)
-            drv_incl.extend(xilinx_aarch64_drv_incl)
+    # import bsp files
+    driver_source, drv_incl = import_json_definition(
+        os.path.join('defs/bsps', arch), bsp+'.json')
 
     lwip_obj_incl = []
     lwip_obj_incl.extend(drv_incl)
-    lwip_obj_incl.extend(bsd_compat_incl)
     lwip_obj_incl.extend(common_includes)
 
     bld(features='c',
@@ -194,7 +126,6 @@ def build(bld):
 
     [install_headers(path) for path in common_includes]
     [install_headers(path) for path in drv_incl]
-    [install_headers(path) for path in bsd_compat_incl]
 
     test_app_incl = []
     test_app_incl.extend(drv_incl)
