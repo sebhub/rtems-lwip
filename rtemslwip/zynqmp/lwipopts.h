@@ -123,4 +123,6 @@
 #define portTICK_RATE_MS ( rtems_clock_get_ticks_per_second() * 1000 )
 #define vTaskDelay( x ) sys_arch_delay( x )
 
+#include <lwipbspopts.h>
+
 #endif /* __LWIPOPTS_H__ */

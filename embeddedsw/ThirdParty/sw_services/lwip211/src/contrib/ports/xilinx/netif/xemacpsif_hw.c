@@ -74,6 +74,12 @@ void init_emacps(xemacpsif_s *xemacps, struct netif *netif)
 
 	xemacpsp = &xemacps->emacps;
 
+#ifdef __rtems__
+#ifdef ZYNQMP_USE_SGMII
+	XEmacPs_SetOptions(xemacpsp, XEMACPS_SGMII_ENABLE_OPTION);
+#endif
+#endif
+
 #ifdef ZYNQMP_USE_JUMBO
 	XEmacPs_SetOptions(xemacpsp, XEMACPS_JUMBO_ENABLE_OPTION);
 #endif
