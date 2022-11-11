@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 #
 # RTEMS Project (https://www.rtems.org/)
 #
@@ -28,7 +30,13 @@
 from __future__ import print_function
 from rtems_waf import rtems
 
+try:
+    import configparser
+except:
+    import ConfigParser as configparser
+
 import lwip
+import os
 import sys
 top = '.'
 
@@ -48,8 +56,58 @@ def options(opt):
     rtems.options(opt)
 
 
+def no_unicode(value):
+    if sys.version_info[0] > 2:
+        return value
+    if isinstance(value, unicode):
+        return str(value)
+    return value
+
+
+def get_config():
+    cp = configparser.ConfigParser()
+    filename = "config.ini"
+    if filename not in cp.read([filename]):
+        return None
+    return cp
+
+
+def get_configured_bsps(cp):
+    if not cp:
+        return "all"
+    bsps = []
+    for raw_bsp in cp.sections():
+        bsps.append(no_unicode(raw_bsp))
+    return ",".join(bsps)
+
+
+def get_configured_bsp_options(cp, arch, bsp):
+    if not cp:
+        return {}
+    options = {}
+    for config_option in cp.items(os.path.join(arch, bsp)):
+        opt_name = config_option[0].upper()
+        options[opt_name] = config_option[1]
+    return options
+
+
+def bsp_configure(conf, arch_bsp):
+    cp = get_config()
+    arch = rtems.arch(arch_bsp)
+    bsp = rtems.bsp(arch_bsp)
+    config_options = get_configured_bsp_options(cp, arch, bsp)
+    for key, val in config_options.items():
+        flag = "-D"+key+"="+val
+        conf.env.CFLAGS.append(flag)
+        conf.env.CXXFLAGS.append(flag)
+    lwip.bsp_configure(conf, arch_bsp)
+
+
 def configure(conf):
-    rtems.configure(conf, lwip.bsp_configure)
+    cp = get_config()
+    if conf.options.rtems_bsps == "all":
+        conf.options.rtems_bsps = get_configured_bsps(cp)
+    rtems.configure(conf, bsp_configure)
 
 
 def build(bld):
