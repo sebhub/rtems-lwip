@@ -28,6 +28,7 @@
 #include <rtems/rtems/cache.h>
 #include <rtems/rtems/intr.h>
 #include <libcpu/mmu-vmsav8-64.h>
+#include <stdio.h>
 
 #define TWO_MB (2*1024*1024)
 #define ONE_GB (1024*1024*1024)
@@ -45,8 +46,12 @@ void Xil_SetTlbAttributes( UINTPTR Addr, u64 attrib )
     Addr < 0x100000000 ? TWO_MB : ONE_GB,
     attrib
   );
-  if ( sc != RTEMS_SUCCESSFUL ) {
-    printf("Failed setting TLB attribs on ptr %p: 0x%lx\n", Addr, attrib);
+  if ( sc == RTEMS_NO_MEMORY ) {
+    printf("Out of memory setting MMU attributes on ptr %p: 0x%lx\n", (void*)Addr, attrib);
+  } else if ( sc == RTEMS_INVALID_ADDRESS ) {
+    printf("Attempted to set MMU attributes on invalid ptr %p: 0x%lx\n", (void*)Addr, attrib);
+  } else if ( sc != RTEMS_SUCCESSFUL ) {
+    printf("Failed setting MMU attributes on ptr %p: 0x%lx\n", (void*)Addr, attrib);
   }
 }
 
