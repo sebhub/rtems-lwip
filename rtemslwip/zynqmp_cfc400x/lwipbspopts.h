@@ -27,6 +27,8 @@
 #ifndef RTEMSLWIP_LWIPBSPOPTS_H
 #define RTEMSLWIP_LWIPBSPOPTS_H
 
+#include <xparameters_ps.h>
+
 /* Use SGMII mode for all interfaces on the CFC-400X */
 #define ZYNQMP_USE_SGMII
 

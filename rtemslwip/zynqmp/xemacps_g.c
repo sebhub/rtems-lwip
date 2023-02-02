@@ -25,6 +25,7 @@
  */
 
 #include "xparameters.h"
+#include "xparameters_ps.h"
 #include "xemacps.h"
 
 /*
