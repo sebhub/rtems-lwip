@@ -85,6 +85,7 @@ typedef u16_t in_port_t;
 
 #ifdef __rtems__
 #include <netinet/in.h>
+#include <net/if.h>
 #define SIN_ZERO_LEN 8
 #else
 #if LWIP_IPV4
@@ -201,14 +202,12 @@ will need to increase long long */
 #define CMSG_LEN(length) (ALIGN_D(sizeof(struct cmsghdr)) + \
                            length)
 
-#endif /* __rtems__ */
 /* Set socket options argument */
 #define IFNAMSIZ NETIF_NAMESIZE
 struct ifreq {
   char ifr_name[IFNAMSIZ]; /* Interface name */
 };
 
-#ifndef __rtems__
 /* Socket protocol types (TCP/UDP/RAW) */
 #define SOCK_STREAM     1
 #define SOCK_DGRAM      2
