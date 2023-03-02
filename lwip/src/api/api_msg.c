@@ -191,6 +191,10 @@ recv_raw(void *arg, struct raw_pcb *pcb, struct pbuf *p,
 
       len = q->tot_len;
       if (sys_mbox_trypost(&conn->recvmbox, buf) != ERR_OK) {
+#ifdef __rtems__
+        LWIP_DEBUGF(API_MSG_DEBUG | LWIP_DBG_LEVEL_WARNING,
+          ("recv_raw: dropping packet\n"));
+#endif
         netbuf_delete(buf);
         return 0;
       } else {
@@ -270,6 +274,10 @@ recv_udp(void *arg, struct udp_pcb *pcb, struct pbuf *p,
 
   len = p->tot_len;
   if (sys_mbox_trypost(&conn->recvmbox, buf) != ERR_OK) {
+#ifdef __rtems__
+        LWIP_DEBUGF(API_MSG_DEBUG | LWIP_DBG_LEVEL_WARNING,
+          ("recv_udp: dropping packet\n"));
+#endif
     netbuf_delete(buf);
     return;
   } else {
