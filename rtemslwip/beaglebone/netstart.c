@@ -25,9 +25,6 @@
  */
 
 #include <netstart.h>
-#include "soc_AM335x.h"
-#include "beaglebone.h"
-#include <lwip/tcpip.h>
 
 int start_networking(
   struct netif  *net_interface,
@@ -37,7 +34,7 @@ int start_networking(
   unsigned char *mac_ethernet_address
 )
 {
-  tcpip_init( NULL, NULL );
+  start_networking_shared();
 
   return 0;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 On-Line Applications Research Corporation (OAR)
+ * Copyright (C) 2023 On-Line Applications Research Corporation (OAR)
  * Written by Kinsey Moore <kinsey.moore@oarcorp.com>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,42 +25,16 @@
  */
 
 #include <netstart.h>
-#include "netif/xadapter.h"
-#include "xparameters.h"
 #include <lwip/tcpip.h>
 
-int start_networking(
-  struct netif  *net_interface,
-  ip_addr_t     *ipaddr,
-  ip_addr_t     *netmask,
-  ip_addr_t     *gateway,
-  unsigned char *mac_ethernet_address
-)
+rtems_status_code start_networking_shared(void)
 {
-  start_networking_shared();
-
-  if ( !xemac_add(
-    net_interface,
-    ipaddr,
-    netmask,
-    gateway,
-    mac_ethernet_address,
-    XPAR_PSU_ETHERNET_0_BASEADDR
-       ) ) {
-    return 1;
-  }
-
-  netif_set_default( net_interface );
-
-  netif_set_up( net_interface );
-
-  sys_thread_new(
-    "xemacif_input_thread",
-    ( void ( * )( void * ) )xemacif_input_thread,
-    net_interface,
-    1024,
-    DEFAULT_THREAD_PRIO
+  tcpip_init( NULL, NULL );
+  return rtems_interrupt_server_initialize(
+    1,
+    RTEMS_MINIMUM_STACK_SIZE,
+    RTEMS_DEFAULT_MODES,
+    RTEMS_DEFAULT_ATTRIBUTES,
+    NULL
   );
-
-  return 0;
 }

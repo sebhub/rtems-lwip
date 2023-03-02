@@ -37,7 +37,7 @@ int start_networking(
   unsigned char *mac_ethernet_address
 )
 {
-  tcpip_init( NULL, NULL );
+  start_networking_shared();
 
   if ( !xemac_add(
     net_interface,

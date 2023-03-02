@@ -67,7 +67,8 @@ BaseType_t xPortInstallInterruptHandler(
   void             *pvCallBackRef
 )
 {
-  rtems_status_code sc = rtems_interrupt_handler_install(
+  rtems_status_code sc = rtems_interrupt_server_handler_install(
+    RTEMS_INTERRUPT_SERVER_DEFAULT,
     ucInterruptID,
     "CGEM Handler",
     RTEMS_INTERRUPT_UNIQUE,

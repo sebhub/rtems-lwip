@@ -375,7 +375,6 @@ sys_arch_protect()
   sys_prot_t pval;
 
 #if RTEMS_SMP
-  pval = _Thread_Dispatch_disable();
   rtems_recursive_mutex_lock( &sys_arch_lock );
 #else
   rtems_interrupt_disable(pval);
@@ -388,7 +387,6 @@ sys_arch_unprotect(sys_prot_t pval)
 {
 #if RTEMS_SMP
   rtems_recursive_mutex_unlock( &sys_arch_lock );
-  _Thread_Dispatch_enable(pval);
 #else
   rtems_interrupt_enable(pval);
 #endif

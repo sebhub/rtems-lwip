@@ -38,4 +38,6 @@ int start_networking(
   unsigned char *mac_ethernet_address
 );
 
+rtems_status_code start_networking_shared(void);
+
 #endif
