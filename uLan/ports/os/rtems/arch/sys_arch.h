@@ -124,15 +124,18 @@ sys_arch_unprotect(sys_prot_t pval)
 {
   rtems_interrupt_enable(pval);
 }
-
-static inline void
-sys_arch_data_sync_barier(void){
-  _ARM_Data_synchronization_barrier();
-}
 #else
 sys_prot_t sys_arch_protect();
 
 void sys_arch_unprotect(sys_prot_t pval);
 #endif
+
+static inline void
+sys_arch_data_sync_barier(void)
+{
+#ifdef __arm__
+  _ARM_Data_synchronization_barrier();
+#endif
+}
 
 #endif /* __ARCH_SYS_ARCH_H__ */
