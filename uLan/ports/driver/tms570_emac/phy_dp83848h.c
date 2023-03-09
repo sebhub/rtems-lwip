@@ -34,6 +34,9 @@
 
 #include "ti_drv_mdio.h"
 #include "phy_dp83848h.h"
+#ifdef __rtems__
+#include "mdio.h"
+#endif /* __rtems__ */
 
 #ifndef TRUE
 /**
