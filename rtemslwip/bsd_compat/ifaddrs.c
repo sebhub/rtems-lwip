@@ -65,6 +65,12 @@ static struct ifaddrs *create_ifaddr_from_netif(struct netif *netif)
   inet_addr_from_ip4addr(&((struct sockaddr_in *)ifaddr->ifa_addr)->sin_addr, &netif->ip_addr.u_addr.ip4);
   inet_addr_from_ip4addr(&((struct sockaddr_in *)ifaddr->ifa_netmask)->sin_addr, &netif->netmask.u_addr.ip4);
   ((struct sockaddr_in *)ifaddr->ifa_netmask)->sin_addr.s_addr = netif->ip_addr.u_addr.ip4.addr & netif->netmask.u_addr.ip4.addr;
+
+  /* Set IFF_LOOPBACK flag if appropriate */
+  if (127 != (ip4_addr_get_u32(&netif->ip_addr.u_addr.ip4) >> 24)) {
+    ifaddr->ifa_flags |= IFF_LOOPBACK;
+  }
+
   return ifaddr;
 }
 
