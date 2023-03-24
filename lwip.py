@@ -68,9 +68,6 @@ def build(bld):
                     includes.extend(tmpincl)
             if 'source-files-to-import' in files:
                 sources.extend(files['source-files-to-import'])
-            if 'source-paths-to-import' in files:
-                for f in files['source-paths-to-import']:
-                    sources.extend(walk_sources(f))
             if 'header-paths-to-import' in files:
                 includes.extend(files['header-paths-to-import'])
         return (sources, includes)

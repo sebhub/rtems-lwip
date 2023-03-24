@@ -1,0 +1,8 @@
+{
+	"header-paths-to-import": [
+		"rtemslwip/zynqmp_hardware"
+	],
+	"source-files-to-import": [
+		"rtemslwip/zynqmp_hardware/netstart.c"
+	]
+}

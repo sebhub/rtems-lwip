@@ -1,11 +1,6 @@
 {
 	"includes": [
-		"xilinx_zynqmp_base"
-	],
-	"header-paths-to-import": [
-		"rtemslwip/zynqmp_hardware"
-	],
-	"source-paths-to-import": [
-		"rtemslwip/zynqmp_hardware"
+		"xilinx_zynqmp_base",
+		"xilinx_zynqmp_hardware_base"
 	]
 }

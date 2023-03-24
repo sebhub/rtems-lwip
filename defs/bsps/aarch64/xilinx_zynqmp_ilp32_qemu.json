@@ -1,11 +1,6 @@
 {
 	"includes": [
-		"xilinx_zynqmp_base"
-	],
-	"header-paths-to-import": [
-		"rtemslwip/zynqmp_qemu"
-	],
-	"source-paths-to-import": [
-		"rtemslwip/zynqmp_qemu"
+		"xilinx_zynqmp_base",
+		"xilinx_zynqmp_qemu_base"
 	]
 }
