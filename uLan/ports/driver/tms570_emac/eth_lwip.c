@@ -41,6 +41,7 @@
 #include "eth_lwip.h"
 #include "tms570_netif.h"
 #include <stdio.h>
+#include <inttypes.h>
 
 /* The lwIP network interface structure for the Ethernet EMAC. */
 #ifndef MAX_EMAC_INSTANCE
@@ -149,7 +150,7 @@ eth_lwip_conv_IP_decimal_Str(ip_addr_t ip, uint8_t *ipStr)
   addr = ip.addr;
  #endif
 
-  snprintf((char *)ipStr, 16, "%lu.%lu.%lu.%lu",
+  snprintf((char *)ipStr, 16, "%" PRIu32 ".%" PRIu32 ".%" PRIu32 ".%" PRIu32 "",
            (addr >> 24), ((addr >> 16) & 0xff), ((addr >> 8) & 0xff), (addr & 0xff));
 }
 
