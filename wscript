@@ -91,15 +91,23 @@ def get_configured_bsp_options(cp, arch, bsp):
     return options
 
 
+bsp_opts_target = os.path.join("rtemslwip", "include", "lwipconfig.h")
+
+
 def bsp_configure(conf, arch_bsp):
     cp = get_config()
     arch = rtems.arch(arch_bsp)
     bsp = rtems.bsp(arch_bsp)
     config_options = get_configured_bsp_options(cp, arch, bsp)
     for key, val in config_options.items():
-        flag = "-D"+key+"="+val
-        conf.env.CFLAGS.append(flag)
-        conf.env.CXXFLAGS.append(flag)
+        conf.define(key, val, quote=False)
+    conf.env.include_key = []
+    conf.write_config_header(
+        os.path.join(arch_bsp, bsp_opts_target),
+        guard="CONFIGURED_LWIP_BSP_OPTS_H",
+        top=True
+    )
+    conf.env.include_key = None
     lwip.bsp_configure(conf, arch_bsp)
 
 
@@ -112,4 +120,9 @@ def configure(conf):
 
 def build(bld):
     rtems.build(bld)
+    arch_bsp = bld.env.RTEMS_ARCH_BSP
+    arch = rtems._arch_from_arch_bsp(arch_bsp)
+    bsp = rtems.bsp(arch_bsp)
+    install_target = os.path.join(bld.env.PREFIX, arch, bsp, "lib", "include")
+    bld.install_files(install_target, bsp_opts_target)
     lwip.build(bld)

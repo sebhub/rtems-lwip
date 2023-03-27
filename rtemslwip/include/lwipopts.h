@@ -27,6 +27,8 @@
 #ifndef __LWIPOPTS_H__
 #define __LWIPOPTS_H__
 
+#include <lwipconfig.h>
+
 /* Critical items that all BSPs must use for full functionality */
 #define SYS_LIGHTWEIGHT_PROT 1
 #define NO_SYS 0
