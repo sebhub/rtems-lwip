@@ -27,8 +27,10 @@
 #include "xil_mmu.h"
 #include <rtems/rtems/cache.h>
 #include <rtems/rtems/intr.h>
+#include <rtems/score/threadimpl.h>
 #include <libcpu/mmu-vmsav8-64.h>
 #include <stdio.h>
+#include <string.h>
 
 #define TWO_MB (2*1024*1024)
 #define ONE_GB (1024*1024*1024)
@@ -67,6 +69,15 @@ BaseType_t xPortInstallInterruptHandler(
   void             *pvCallBackRef
 )
 {
+  char name[10];
+
+  /* Is this running in the context of any interrupt server tasks? */
+  _Thread_Get_name( _Thread_Get_executing(), name, sizeof( name ) );
+  if (strcmp(name, "IRQS") == 0) {
+    /* Can't run this from within an IRQ Server thread context */
+    return RTEMS_ILLEGAL_ON_SELF;
+  }
+
   rtems_status_code sc = rtems_interrupt_server_handler_install(
     RTEMS_INTERRUPT_SERVER_DEFAULT,
     ucInterruptID,
