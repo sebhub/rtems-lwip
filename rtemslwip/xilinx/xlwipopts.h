@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 On-Line Applications Research Corporation (OAR)
+ * Copyright (C) 2023 On-Line Applications Research Corporation (OAR)
  * Written by Kinsey Moore <kinsey.moore@oarcorp.com>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -24,12 +24,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef RTEMSLWIP_LWIPBSPOPTS_H
-#define RTEMSLWIP_LWIPBSPOPTS_H
+#ifndef __XLWIPOPTS_H__
+#define __XLWIPOPTS_H__
 
-#include <common_lwipopts.h>
+/* These macros allow RTEMS to pretend to be FreeRTOS for Xilinx drivers */
+#define tskIDLE_PRIORITY RTEMS_MAXIMUM_PRIORITY
+#define portTICK_RATE_MS (rtems_clock_get_ticks_per_second() * 1000)
+#define vTaskDelay(x) sys_arch_delay(x)
 
-/* Use SGMII mode for all interfaces on the CFC-400X */
-#define ZYNQMP_USE_SGMII
-
-#endif /* RTEMSLWIP_LWIPBSPOPTS_H */
+#endif /* __XLWIPOPTS_H__ */

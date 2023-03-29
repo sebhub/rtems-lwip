@@ -2,6 +2,7 @@
 	"header-paths-to-import": [
 		"uLan/ports/driver/tms570_emac",
 		"uLan/ports/os",
+		"rtemslwip/tms570",
 		"cpsw/src/include"
 	],
 	"source-files-to-import": [

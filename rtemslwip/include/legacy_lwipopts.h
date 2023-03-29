@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 On-Line Applications Research Corporation (OAR)
+ * Copyright (C) 2023 On-Line Applications Research Corporation (OAR)
  * Written by Kinsey Moore <kinsey.moore@oarcorp.com>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -24,12 +24,30 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef RTEMSLWIP_LWIPBSPOPTS_H
-#define RTEMSLWIP_LWIPBSPOPTS_H
+/*
+ * The options here are pruned down, but roughly equivalent to the original set
+ * of options configured for the BeagleBone and TMS570 BSPs originally pulled
+ * from the uLan repository.
+ */
 
-#include <common_lwipopts.h>
+#ifndef __LEGACY_LWIPOPTS_H__
+#define __LEGACY_LWIPOPTS_H__
 
-/* Use SGMII mode for all interfaces on the CFC-400X */
-#define ZYNQMP_USE_SGMII
+#define CPSW_DUAL_MAC_MODE
 
-#endif /* RTEMSLWIP_LWIPBSPOPTS_H */
+#define NUM_DHCP_TRIES 5
+
+#define LWIP_ETHERNET 1
+
+#define LWIP_TCPIP_CORE_LOCKING 1
+
+/*****************************************************************************
+**                          Memory Options
+*****************************************************************************/
+#define MEM_ALIGNMENT 4
+#define MEM_SIZE (1024 * 1024) /* 4K */
+#define MEMP_NUM_TCP_SEG 32
+#define MEMP_MEM_MALLOC 1
+#define MEMP_MEM_INIT 1
+
+#endif /* __LEGACY_LWIPOPTS_H__ */
