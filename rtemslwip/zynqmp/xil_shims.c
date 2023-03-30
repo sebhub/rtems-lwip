@@ -102,7 +102,12 @@ void XScuGic_DisableIntr ( u32 DistBaseAddress, u32 Int_Id )
   rtems_interrupt_vector_disable( Int_Id );
 }
 
+/*
+ * The Xilinx code was written such that it assumed there was no invalidate-only
+ * functionality on A53 cores. This function must flush and invalidate because
+ * of how they mapped things.
+ */
 void Xil_DCacheInvalidateRange( INTPTR adr, INTPTR len )
 {
-  rtems_cache_invalidate_multiple_data_lines( (const void *) adr, len );
+  rtems_cache_flush_multiple_data_lines( (const void *) adr, len );
 }
