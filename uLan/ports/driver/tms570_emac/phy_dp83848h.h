@@ -35,9 +35,9 @@
 #ifndef __DRV_PHY_H
 #define __DRV_PHY_H
 
-#ifdef __rtems__
-#include <bsp/ti_herc/reg_mdio.h>
-#endif /* __rtems__ */
+#include "mdio.h"
+
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -106,7 +106,7 @@ extern "C" {
  *                        This must be implemented in the layer above.
  * @note                  Calling this function is blocking until PHY indicates the reset process is complete.
  */
-void PHY_reset(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr);
+void PHY_reset(mdioControl *mdio, uint32_t phyAddr);
 
 /**
  * Reads link partner ability register from the PHY
@@ -117,7 +117,7 @@ void PHY_reset(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr);
  *
  * @return TRUE if reading succesful, FALSE if reading failed
  */
-uint32_t PHY_partner_ability_get(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr, unsigned short *regContent);
+uint32_t PHY_partner_ability_get(mdioControl *mdio, uint32_t phyAddr, unsigned short *regContent);
 
 /**
  * This function does Autonegotiates with the EMAC device connected
@@ -136,7 +136,7 @@ uint32_t PHY_partner_ability_get(volatile tms570_mdio_t *mdioBaseAddr, uint32_t 
  *
  * @note  this function is blocking, waits till link is established
  */
-uint32_t PHY_auto_negotiate(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr, unsigned short advVal);
+uint32_t PHY_auto_negotiate(mdioControl *mdio, uint32_t phyAddr, unsigned short advVal);
 
 /**
  * This function starts autonegotiaon with the EMAC device connected
@@ -155,7 +155,7 @@ uint32_t PHY_auto_negotiate(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAd
  * @return TRUE if setting autonegotiation startup succesful,
  *         FALSE if starting autonegotiation failed
  */
-uint32_t PHY_start_auto_negotiate(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr, unsigned short advVal);
+uint32_t PHY_start_auto_negotiate(mdioControl *mdio, uint32_t phyAddr, unsigned short advVal);
 
 /**
  * This function examines, whether autonegotiation is done.
@@ -166,7 +166,7 @@ uint32_t PHY_start_auto_negotiate(volatile tms570_mdio_t *mdioBaseAddr, uint32_t
  *
  * @return TRUE if autonegotiation succesfull and done, FALSE if autonegotiation failed.
  */
-uint32_t PHY_is_done_auto_negotiate(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr);
+uint32_t PHY_is_done_auto_negotiate(mdioControl *mdio, uint32_t phyAddr);
 
 /**
  * Reads the link status of the PHY.
@@ -182,7 +182,7 @@ uint32_t PHY_is_done_auto_negotiate(volatile tms570_mdio_t *mdioBaseAddr, uint32
  * @note    This reads both the basic status register of the PHY and the
  *          link register of MDIO for double check
  **/
-uint32_t PHY_link_status_get(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr, volatile uint32_t retries);
+uint32_t PHY_link_status_get(mdioControl *mdio, uint32_t phyAddr, volatile uint32_t retries);
 
 /**
  * Fetches RMII/MII mode of PHY.
@@ -193,7 +193,7 @@ uint32_t PHY_link_status_get(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyA
  * @return  TRUE if mode of PHY is set to RMII \
  *          FALSE if mode of PHY is set to MII
  */
-uint32_t PHY_RMII_mode_get(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr);
+uint32_t PHY_RMII_mode_get(mdioControl *mdio, uint32_t phyAddr);
 
 /**
  * Sets RMII/MII mode of PHY.
@@ -204,7 +204,7 @@ uint32_t PHY_RMII_mode_get(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAdd
  *                        1 - RMII \
  *                        0 - MII
  */
-void PHY_MII_mode_set(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr, uint32_t mode);
+void PHY_MII_mode_set(mdioControl *mdio, uint32_t phyAddr, uint32_t mode);
 
 /**
  * Powers down the PHY.
@@ -212,7 +212,7 @@ void PHY_MII_mode_set(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr, ui
  * @param   mdioBaseAddr  Base Address of the MDIO Module Registers.
  * @param   phyAddr       PHY Address (0-31).
  */
-void PHY_Power_Down(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr);
+void PHY_Power_Down(mdioControl *mdio, uint32_t phyAddr);
 
 
 /**
@@ -221,7 +221,7 @@ void PHY_Power_Down(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr);
  * @param   mdioBaseAddr  Base Address of the MDIO Module Registers.
  * @param   phyAddr       PHY Address (0-31).
  */
-void PHY_Power_Up(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr);
+void PHY_Power_Up(mdioControl *mdio, uint32_t phyAddr);
 
 #ifdef __cplusplus
 }

@@ -63,7 +63,7 @@
 /**
  * \brief   Reads a PHY register using MDIO.
  *
- * \param   baseAddr      Base Address of the MDIO Module Registers.
+ * \param   base      MDIO Module Control.
  * \param   phyAddr       PHY Adress.
  * \param   regNum        Register Number to be read.
  * \param   dataPtr       Pointer where the read value shall be written.
@@ -73,9 +73,10 @@
  *          FALSE - read is not acknowledged properly.
  *
  **/
-unsigned int MDIOPhyRegRead(unsigned int baseAddr, unsigned int phyAddr,
-                            unsigned int regNum, volatile unsigned short *dataPtr)
+unsigned int TIMDIOPhyRegRead(mdioControl *base, unsigned int phyAddr,
+                            unsigned int regNum, unsigned short *dataPtr)
 {
+    uintptr_t baseAddr = ((tiMDIOControl *)base)->baseAddr;
     /* Wait till transaction completion if any */
     while(HWREG(baseAddr + MDIO_USERACCESS0) & MDIO_USERACCESS0_GO);
 
@@ -101,7 +102,7 @@ unsigned int MDIOPhyRegRead(unsigned int baseAddr, unsigned int phyAddr,
 /**
  * \brief   Writes a PHY register using MDIO.
  *
- * \param   baseAddr      Base Address of the MDIO Module Registers.
+ * \param   base      MDIO Module Control.
  * \param   phyAddr       PHY Adress.
  * \param   regNum        Register Number to be read.
  * \param   RegVal        Value to be written.
@@ -109,9 +110,10 @@ unsigned int MDIOPhyRegRead(unsigned int baseAddr, unsigned int phyAddr,
  * \return  None
  *
  **/
-void MDIOPhyRegWrite(unsigned int baseAddr, unsigned int phyAddr,
+void TIMDIOPhyRegWrite(mdioControl *base, unsigned int phyAddr,
                      unsigned int regNum, unsigned short RegVal)
 {
+    uintptr_t baseAddr = ((tiMDIOControl *)base)->baseAddr;
     /* Wait till transaction completion if any */
     while(HWREG(baseAddr + MDIO_USERACCESS0) & MDIO_USERACCESS0_GO);
 
@@ -129,13 +131,14 @@ void MDIOPhyRegWrite(unsigned int baseAddr, unsigned int phyAddr,
  *          The bit correponding to the PHY address will be set if the PHY
  *          is alive.
  *
- * \param   baseAddr      Base Address of the MDIO Module Registers.
+ * \param   base      MDIO Module Control.
  *
  * \return  MDIO alive register state
  *
  **/
-unsigned int MDIOPhyAliveStatusGet(unsigned int baseAddr)
+unsigned int TIMDIOPhyAliveStatusGet(mdioControl *base)
 {
+    uintptr_t baseAddr = ((tiMDIOControl *)base)->baseAddr;
     return (HWREG(baseAddr + MDIO_ALIVE));
 }
 
@@ -144,13 +147,14 @@ unsigned int MDIOPhyAliveStatusGet(unsigned int baseAddr)
  *          The bit correponding to the PHY address will be set if the PHY
  *          link is active.
  *
- * \param   baseAddr      Base Address of the MDIO Module Registers.
+ * \param   base      MDIO Module Control.
  *
  * \return  MDIO link register state
  *
  **/
-unsigned int MDIOPhyLinkStatusGet(unsigned int baseAddr)
+unsigned int TIMDIOPhyLinkStatusGet(mdioControl *base)
 {
+    uintptr_t baseAddr = ((tiMDIOControl *)base)->baseAddr;
     return (HWREG(baseAddr + MDIO_LINK));
 }
 
@@ -158,52 +162,22 @@ unsigned int MDIOPhyLinkStatusGet(unsigned int baseAddr)
  * \brief   Initializes the MDIO peripheral. This enables the MDIO state
  *          machine, uses standard pre-amble and set the clock divider value.
  *
- * \param   baseAddr       Base Address of the MDIO Module Registers.
+ * \param   base       MDIO Module Control.
  * \param   mdioInputFreq  The clock input to the MDIO module
  * \param   mdioOutputFreq The clock output required on the MDIO bus
  * \return  None
  *
  **/
-void MDIOInit(unsigned int baseAddr, unsigned int mdioInputFreq,
+void TIMDIOInit(mdioControl *base, unsigned int mdioInputFreq,
               unsigned int mdioOutputFreq)
 {
+   uintptr_t baseAddr = ((tiMDIOControl *)base)->baseAddr;
    unsigned int clkDiv = (mdioInputFreq/mdioOutputFreq) - 1;
 
    HWREG(baseAddr + MDIO_CONTROL) = ((clkDiv & MDIO_CONTROL_CLKDIV)
                                      | MDIO_CONTROL_ENABLE 
                                      | MDIO_CONTROL_PREAMBLE
                                      | MDIO_CONTROL_FAULTENB);
-}
-
-/**
- * \brief   Saves the MDIO register context. Note that only MDIO control 
- *          register context is saved here.
- *
- * \param   baseAddr       Base Address of the MDIO Module Registers.
- * \param   contextPtr     Pointer to the structure where MDIO context 
- *                         needs to be saved.
- * \return  None
- *
- **/
-void MDIOContextSave(unsigned int baseAddr, MDIOCONTEXT *contextPtr)
-{
-    contextPtr->mdioCtrl = HWREG(baseAddr + MDIO_CONTROL);
-}
-
-/**
- * \brief   Restores the MDIO register context. Note that only MDIO control 
- *          register context is restored here. Hence enough delay shall be
- *          given after this API
- *
- * \param   baseAddr       Base Address of the MDIO Module Registers.
- * \param   contextPtr     Pointer to the structure where MDIO context 
- *                         needs to be restored from
- * \return  None
- *
- **/
-void MDIOContextRestore(unsigned int baseAddr, MDIOCONTEXT *contextPtr)
-{
-    HWREG(baseAddr + MDIO_CONTROL) = contextPtr->mdioCtrl;
 }
 
 /***************************** End Of File ***********************************/

@@ -61,7 +61,7 @@
 
 /* DriverLib Header Files required for this interface driver. */
 #include "cpsw.h"
-#include "mdio.h"
+#include "hw_mdio.h"
 #include "delay.h"
 #include "phy.h"
 #include "cache.h"
@@ -269,7 +269,7 @@ struct cpswport{
 struct cpswinst{
   /* Base addresses */
   u32_t ss_base;
-  u32_t mdio_base;
+  tiMDIOControl mdio;
   u32_t wrpr_base;
   u32_t ale_base;
   u32_t cpdma_base;
@@ -308,7 +308,12 @@ cpswif_inst_config(struct cpswportif *cpswif) {
    */
   if(0 == inst_num) {
     cpswinst->ss_base = CPSW0_SS_REGS;
-    cpswinst->mdio_base = CPSW0_MDIO_REGS;
+    cpswinst->mdio.base.init = TIMDIOInit;
+    cpswinst->mdio.base.phyAliveStatusGet = TIMDIOPhyAliveStatusGet;
+    cpswinst->mdio.base.phyLinkStatusGet = TIMDIOPhyLinkStatusGet;
+    cpswinst->mdio.base.phyRegRead = TIMDIOPhyRegRead;
+    cpswinst->mdio.base.phyRegWrite = TIMDIOPhyRegWrite;
+    cpswinst->mdio.baseAddr = CPSW0_MDIO_REGS;
     cpswinst->wrpr_base = CPSW0_WR_REGS;
     cpswinst->cpdma_base = CPSW0_CPDMA_REGS;
     cpswinst->ale_base = CPSW0_ALE_REGS;
@@ -1166,7 +1171,7 @@ cpswif_phy_autoneg(struct cpswinst *cpswinst, u32_t port_num, u32_t adv) {
   u32_t aut_neg_cnt = 200, auto_stat, transfer_mode = 0;
 
   /* Check if ethernet PHY is present or not */
-  if (0 == (MDIOPhyAliveStatusGet(cpswinst->mdio_base)
+  if (0 == (MDIOPhyAliveStatusGet(&cpswinst->mdio.base)
             & (1 << cpswinst->port[port_num - 1].phy_addr))) {
     LWIP_PRINTF("\n\rNo PHY found at addr %d for Port %d of Instance %d.",
                 cpswinst->port[port_num - 1].phy_addr,
@@ -1221,12 +1226,12 @@ cpswif_phy_autoneg(struct cpswinst *cpswinst, u32_t port_num, u32_t adv) {
    * Now start Autonegotiation. PHY will talk to its partner
    * and give us what the partner can handle
    */
-  if (PhyAutoNegotiate(cpswinst->mdio_base,
+  if (PhyAutoNegotiate(&cpswinst->mdio.base,
                        cpswinst->port[port_num -1].phy_addr,
                        &adv_val, &gig_adv_val) == TRUE) {
     while (aut_neg_cnt) {
       delay(50);
-      auto_stat = PhyAutoNegStatusGet(cpswinst->mdio_base,
+      auto_stat = PhyAutoNegStatusGet(&cpswinst->mdio.base,
                                       cpswinst->port[port_num -1].phy_addr);
       if (TRUE == auto_stat) {
         break;
@@ -1243,7 +1248,7 @@ cpswif_phy_autoneg(struct cpswinst *cpswinst, u32_t port_num, u32_t adv) {
     }
 
     /* Get what the partner supports */
-    PhyPartnerAbilityGet(cpswinst->mdio_base,
+    PhyPartnerAbilityGet(&cpswinst->mdio.base,
                          cpswinst->port[port_num -1].phy_addr,
                          &partnr_ablty, &gbps_partnr_ablty);
     if (gbps_partnr_ablty & PHY_LINK_PARTNER_1000BT_FD) {
@@ -1281,7 +1286,7 @@ cpswif_phy_autoneg(struct cpswinst *cpswinst, u32_t port_num, u32_t adv) {
   }
 
   /* Check if PHY link is there or not */
-  if (FALSE == ((PhyLinkStatusGet(cpswinst->mdio_base,
+  if (FALSE == ((PhyLinkStatusGet(&cpswinst->mdio.base,
                 cpswinst->port[port_num - 1].phy_addr, 1000)))) {
     LWIP_PRINTF("\n\rPHY link connectivity failed for Port %d of Inst %d.",
                 port_num, 0);
@@ -1319,7 +1324,7 @@ cpswif_phy_forced(struct cpswinst *cpswinst, u32_t port_num, u32_t speed,
   u32_t frc_stat_cnt = 200, frc_stat = FALSE, transfer_mode = 0;
 
   /* Check if ethernet PHY is present or not */
-  if (0 == (MDIOPhyAliveStatusGet(cpswinst->mdio_base)
+  if (0 == (MDIOPhyAliveStatusGet(&cpswinst->mdio.base)
             & (1 << cpswinst->port[port_num - 1].phy_addr))){
     LWIP_PRINTF("\n\rNo PHY found at addr %d for Port %d of Instance %d.",
                 cpswinst->port[port_num - 1].phy_addr,
@@ -1345,18 +1350,18 @@ cpswif_phy_forced(struct cpswinst *cpswinst, u32_t port_num, u32_t speed,
     return linkstat;
   }
 
-  if (FALSE == PhyReset(cpswinst->mdio_base,
+  if (FALSE == PhyReset(&cpswinst->mdio.base,
                         cpswinst->port[port_num - 1].phy_addr)) {
     LWIP_PRINTF("\n\rPHY Reset Failed...");
     return linkstat;
   }
 
-  if (TRUE == (PhyLinkStatusGet(cpswinst->mdio_base,
+  if (TRUE == (PhyLinkStatusGet(&cpswinst->mdio.base,
                cpswinst->port[port_num - 1].phy_addr, 1000))) {
    while (frc_stat_cnt) {
       delay(50);
       /* Check if PHY link is there or not */
-      frc_stat = (PhyLinkStatusGet(cpswinst->mdio_base,
+      frc_stat = (PhyLinkStatusGet(&cpswinst->mdio.base,
                   cpswinst->port[port_num - 1].phy_addr, 1000));
 
       if (TRUE == frc_stat) {
@@ -1372,11 +1377,11 @@ cpswif_phy_forced(struct cpswinst *cpswinst, u32_t port_num, u32_t speed,
   frc_stat_cnt = 200;
   frc_stat = FALSE;
 
-  if (PhyConfigure(cpswinst->mdio_base, cpswinst->port[port_num -1].phy_addr,
+  if (PhyConfigure(&cpswinst->mdio.base, cpswinst->port[port_num -1].phy_addr,
                    speed_val, duplex_val)) {
     while (frc_stat_cnt) {
       delay(50);
-      frc_stat = PhyLinkStatusGet(cpswinst->mdio_base,
+      frc_stat = PhyLinkStatusGet(&cpswinst->mdio.base,
                            cpswinst->port[port_num - 1].phy_addr, 1000);
 
       if (1 == frc_stat) {
@@ -1470,12 +1475,12 @@ cpswif_autoneg_config(u32_t inst_num, u32_t port_num) {
    * Now start Autonegotiation. PHY will talk to its partner
    * and give us what the partner can handle
    */
-  if(PhyAutoNegotiate(cpswinst->mdio_base,
+  if(PhyAutoNegotiate(&cpswinst->mdio.base,
                       cpswinst->port[port_num -1].phy_addr,
                       &adv_val, &gig_adv_val) == TRUE) {
     while(aut_neg_cnt) {
       delay(50);
-      auto_stat = PhyAutoNegStatusGet(cpswinst->mdio_base,
+      auto_stat = PhyAutoNegStatusGet(&cpswinst->mdio.base,
                                       cpswinst->port[port_num -1].phy_addr);
       if(TRUE == auto_stat) {
         break;
@@ -1492,7 +1497,7 @@ cpswif_autoneg_config(u32_t inst_num, u32_t port_num) {
     }
 
     /* Get what the partner supports */
-    PhyPartnerAbilityGet(cpswinst->mdio_base,
+    PhyPartnerAbilityGet(&cpswinst->mdio.base,
                          cpswinst->port[port_num -1].phy_addr,
                          &partnr_ablty, &gbps_partnr_ablty);
     if(gbps_partnr_ablty & PHY_LINK_PARTNER_1000BT_FD) {
@@ -1789,7 +1794,7 @@ cpswif_phylink_config(struct cpswportif * cpswif, u32_t slv_port_num) {
   err_t err;
 
   /* Check if ethernet PHY is present or not */
-  if(0 == (MDIOPhyAliveStatusGet(cpswinst->mdio_base)
+  if(0 == (MDIOPhyAliveStatusGet(&cpswinst->mdio.base)
         & (1 << cpswinst->port[slv_port_num - 1].phy_addr))){
     LWIP_PRINTF("\n\rNo PHY found at address %d for  Port %d of Instance %d.",
                 cpswinst->port[slv_port_num - 1].phy_addr, slv_port_num,
@@ -1808,7 +1813,7 @@ cpswif_phylink_config(struct cpswportif * cpswif, u32_t slv_port_num) {
   err = (err_t)(cpswif_autoneg_config(cpswif->inst_num, slv_port_num));
 
   /* Check if PHY link is there or not */
-  if(FALSE == ((PhyLinkStatusGet(cpswinst->mdio_base,
+  if(FALSE == ((PhyLinkStatusGet(&cpswinst->mdio.base,
                            cpswinst->port[slv_port_num - 1].phy_addr, 1000)))) {
     LWIP_PRINTF("\n\rPHY link connectivity failed for Port %d of Instance %d.",
                 slv_port_num, cpswif->inst_num);
@@ -1988,7 +1993,7 @@ cpswif_inst_init(struct cpswportif *cpswif){
   CPSWCPDMAReset(cpswinst->cpdma_base);
 
   /* Initialize MDIO */
-  MDIOInit(cpswinst->mdio_base, MDIO_FREQ_INPUT, MDIO_FREQ_OUTPUT);
+  MDIOInit(&cpswinst->mdio.base, MDIO_FREQ_INPUT, MDIO_FREQ_OUTPUT);
   delay(1);
 
   CPSWALEInit(cpswinst->ale_base);
@@ -2360,7 +2365,7 @@ cpswif_link_status(u32_t inst_num, u32_t slv_port_num) {
 
   struct cpswinst *cpswinst = &cpsw_inst_data[inst_num];
 
-  return (PhyLinkStatusGet(cpswinst->mdio_base,
+  return (PhyLinkStatusGet(&cpswinst->mdio.base,
                            cpswinst->port[slv_port_num - 1].phy_addr, 3));
 }
 

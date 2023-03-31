@@ -43,32 +43,53 @@
 #ifndef __MDIO_H__
 #define __MDIO_H__
 
-#include "hw_mdio.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-/*****************************************************************************/
-/*
-** Structure to save CPSW context
-*/
-typedef struct mdioContext {
-    unsigned int mdioCtrl;
-}MDIOCONTEXT;
+
+typedef struct mdioControl {
+    void (*init)(struct mdioControl *self, unsigned int mdioInputFreq,
+              unsigned int mdioOutputFreq);
+    unsigned int (*phyAliveStatusGet)(struct mdioControl *self);
+    unsigned int (*phyLinkStatusGet)(struct mdioControl *self);
+    unsigned int (*phyRegRead)(struct mdioControl *self, unsigned int phyAddr,
+                               unsigned int regNum, unsigned short *dataPtr);
+    void (*phyRegWrite)(struct mdioControl *self, unsigned int phyAddr,
+                        unsigned int regNum, unsigned short RegVal);
+} mdioControl;
 
 /*
 ** Prototypes for the APIs
 */
-extern unsigned int MDIOPhyAliveStatusGet(unsigned int baseAddr);
-extern unsigned int MDIOPhyLinkStatusGet(unsigned int baseAddr);
-extern void MDIOInit(unsigned int baseAddr, unsigned int mdioInputFreq,
-                     unsigned int mdioOutputFreq);
-extern unsigned int MDIOPhyRegRead(unsigned int baseAddr, unsigned int phyAddr,
-                                   unsigned int regNum, volatile unsigned short *dataPtr);
-extern void MDIOPhyRegWrite(unsigned int baseAddr, unsigned int phyAddr,
-                            unsigned int regNum, unsigned short RegVal);
-extern void MDIOContextSave(unsigned int baseAddr, MDIOCONTEXT *contextPtr);
-extern void MDIOContextRestore(unsigned int baseAddr, MDIOCONTEXT *contextPtr);
+
+static inline void MDIOInit(mdioControl *self, unsigned int mdioInputFreq,
+    unsigned int mdioOutputFreq)
+{
+  return (*self->init)(self, mdioInputFreq, mdioOutputFreq);
+}
+
+static inline unsigned int MDIOPhyAliveStatusGet(mdioControl *self)
+{
+  return (*self->phyAliveStatusGet)(self);
+}
+
+static inline unsigned int MDIOPhyLinkStatusGet(mdioControl *self)
+{
+  return (*self->phyLinkStatusGet)(self);
+}
+
+static inline unsigned int MDIOPhyRegRead(mdioControl *self,
+    unsigned int phyAddr, unsigned int regNum, unsigned short *dataPtr)
+{
+  return (*self->phyRegRead)(self, phyAddr, regNum, dataPtr);
+}
+
+static inline void MDIOPhyRegWrite(mdioControl *self, unsigned int phyAddr,
+    unsigned int regNum, unsigned short regVal)
+{
+  return (*self->phyRegWrite)(self, phyAddr, regNum, regVal);
+}
+
 #ifdef __cplusplus
 }
 #endif

@@ -53,25 +53,25 @@
 /**
  * \brief   Reads the PHY ID.
  *
- * \param   mdioBaseAddr  Base Address of the MDIO Module Registers.
+ * \param   mdio  MDIO Module Control.
  * \param   phyAddr       PHY Adress.
  *
  * \return  32 bit PHY ID (ID1:ID2)
  *
  **/
-unsigned int PhyIDGet(unsigned int mdioBaseAddr, unsigned int phyAddr)
+unsigned int PhyIDGet(mdioControl *mdio, unsigned int phyAddr)
 {
     unsigned int id = 0;
     unsigned short data;
 
     /* read the ID1 register */
-    MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_ID1, &data);
+    MDIOPhyRegRead(mdio, phyAddr, PHY_ID1, &data);
 
     /* update the ID1 value */
     id = data << PHY_ID_SHIFT;
  
     /* read the ID2 register */
-    MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_ID2, &data);
+    MDIOPhyRegRead(mdio, phyAddr, PHY_ID2, &data);
 
     /* update the ID2 value */
     id |= data; 
@@ -83,7 +83,7 @@ unsigned int PhyIDGet(unsigned int mdioBaseAddr, unsigned int phyAddr)
 /**
  * \brief   Reads a register from the the PHY
  *
- * \param   mdioBaseAddr  Base Address of the MDIO Module Registers.
+ * \param   mdio  MDIO Module Control.
  * \param   phyAddr       PHY Adress.
  * \param   regIdx        Index of the register to be read
  * \param   regValAdr     address where value of the register will be written
@@ -91,16 +91,16 @@ unsigned int PhyIDGet(unsigned int mdioBaseAddr, unsigned int phyAddr)
  * \return  status of the read
  *
  **/
-unsigned int PhyRegRead(unsigned int mdioBaseAddr, unsigned int phyAddr,
+unsigned int PhyRegRead(mdioControl *mdio, unsigned int phyAddr,
                         unsigned int regIdx, unsigned short *regValAdr)
 {
-    return (MDIOPhyRegRead(mdioBaseAddr, phyAddr, regIdx, regValAdr));
+    return (MDIOPhyRegRead(mdio, phyAddr, regIdx, regValAdr));
 }
 
 /**
  * \brief   Writes a register with the input
  *
- * \param   mdioBaseAddr  Base Address of the MDIO Module Registers.
+ * \param   mdio  MDIO Module Control.
  * \param   phyAddr       PHY Adress.
  * \param   regIdx        Index of the register to be read
  * \param   regValAdr     value to be written
@@ -108,16 +108,16 @@ unsigned int PhyRegRead(unsigned int mdioBaseAddr, unsigned int phyAddr,
  * \return  None
  *
  **/
-void PhyRegWrite(unsigned int mdioBaseAddr, unsigned int phyAddr,
+void PhyRegWrite(mdioControl *mdio, unsigned int phyAddr,
                  unsigned int regIdx, unsigned short regVal)
 {
-    MDIOPhyRegWrite(mdioBaseAddr, phyAddr, regIdx, regVal);
+    MDIOPhyRegWrite(mdio, phyAddr, regIdx, regVal);
 }
 
 /**
  * \brief   Enables Loop Back mode
  *
- * \param   mdioBaseAddr  Base Address of the MDIO Module Registers.
+ * \param   mdio  MDIO Module Control.
  * \param   phyAddr       PHY Adress.
  *
  * \return  status after enabling.  \n
@@ -125,11 +125,11 @@ void PhyRegWrite(unsigned int mdioBaseAddr, unsigned int phyAddr,
  *          FALSE if not able to enable
  *
  **/
-unsigned int PhyLoopBackEnable(unsigned int mdioBaseAddr, unsigned int phyAddr)
+unsigned int PhyLoopBackEnable(mdioControl *mdio, unsigned int phyAddr)
 {
     unsigned short data;
 
-    if(MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_BCR, &data) != TRUE )
+    if(MDIOPhyRegRead(mdio, phyAddr, PHY_BCR, &data) != TRUE )
     {
         return FALSE;
     }
@@ -137,7 +137,7 @@ unsigned int PhyLoopBackEnable(unsigned int mdioBaseAddr, unsigned int phyAddr)
     data |= PHY_LPBK_ENABLE;
 
     /* Enable loop back */
-    MDIOPhyRegWrite(mdioBaseAddr, phyAddr, PHY_BCR, data);
+    MDIOPhyRegWrite(mdio, phyAddr, PHY_BCR, data);
 
     return TRUE;
 }
@@ -145,7 +145,7 @@ unsigned int PhyLoopBackEnable(unsigned int mdioBaseAddr, unsigned int phyAddr)
 /**
  * \brief   Disables Loop Back mode
  *
- * \param   mdioBaseAddr  Base Address of the MDIO Module Registers.
+ * \param   mdio  MDIO Module Control.
  * \param   phyAddr       PHY Adress.
  *
  * \return  status after enabling.  \n
@@ -153,11 +153,11 @@ unsigned int PhyLoopBackEnable(unsigned int mdioBaseAddr, unsigned int phyAddr)
  *          FALSE if not able to disable
  *
  **/
-unsigned int PhyLoopBackDisable(unsigned int mdioBaseAddr, unsigned int phyAddr)
+unsigned int PhyLoopBackDisable(mdioControl *mdio, unsigned int phyAddr)
 {
     unsigned short data;
 
-    if(MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_BCR, &data) != TRUE )
+    if(MDIOPhyRegRead(mdio, phyAddr, PHY_BCR, &data) != TRUE )
     {
         return FALSE;
     }
@@ -165,7 +165,7 @@ unsigned int PhyLoopBackDisable(unsigned int mdioBaseAddr, unsigned int phyAddr)
     data &= ~(PHY_LPBK_ENABLE);
 
     /* Disable loop back */
-    MDIOPhyRegWrite(mdioBaseAddr, phyAddr, PHY_BCR, data);
+    MDIOPhyRegWrite(mdio, phyAddr, PHY_BCR, data);
 
     return TRUE;
 }
@@ -173,7 +173,7 @@ unsigned int PhyLoopBackDisable(unsigned int mdioBaseAddr, unsigned int phyAddr)
 /**
  * \brief   Resets the PHY
  *
- * \param   mdioBaseAddr  Base Address of the MDIO Module Registers.
+ * \param   mdio  MDIO Module Control.
  * \param   phyAddr       PHY Adress.
  * \param   speed         Speed to be enabled
  * \param   duplexMode    Duplex Mode
@@ -183,20 +183,20 @@ unsigned int PhyLoopBackDisable(unsigned int mdioBaseAddr, unsigned int phyAddr)
  *          FALSE if configuration failed
  *
  **/
-unsigned int PhyReset(unsigned int mdioBaseAddr, unsigned int phyAddr)
+unsigned int PhyReset(mdioControl *mdio, unsigned int phyAddr)
 {
     unsigned short data;
 
     data = PHY_SOFTRESET;
 
     /* Reset the phy */
-    MDIOPhyRegWrite(mdioBaseAddr, phyAddr, PHY_BCR, data);
+    MDIOPhyRegWrite(mdio, phyAddr, PHY_BCR, data);
 
     /* wait till the reset bit is auto cleared */
     while(data & PHY_SOFTRESET)
     {
         /* Read the reset */
-        if(MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_BCR, &data) != TRUE)
+        if(MDIOPhyRegRead(mdio, phyAddr, PHY_BCR, &data) != TRUE)
         {
             return FALSE;
         }
@@ -208,7 +208,7 @@ unsigned int PhyReset(unsigned int mdioBaseAddr, unsigned int phyAddr)
 /**
  * \brief   Configures the PHY for a given speed and duplex mode.
  *
- * \param   mdioBaseAddr  Base Address of the MDIO Module Registers.
+ * \param   mdio  MDIO Module Control.
  * \param   phyAddr       PHY Adress.
  * \param   speed         Speed to be enabled
  * \param   duplexMode    Duplex Mode
@@ -218,11 +218,11 @@ unsigned int PhyReset(unsigned int mdioBaseAddr, unsigned int phyAddr)
  *          FALSE if configuration failed
  *
  **/
-unsigned int PhyConfigure(unsigned int mdioBaseAddr, unsigned int phyAddr,
+unsigned int PhyConfigure(mdioControl *mdio, unsigned int phyAddr,
                           unsigned short speed, unsigned short duplexMode)
 {
     /* Set the configurations */
-    MDIOPhyRegWrite(mdioBaseAddr, phyAddr, PHY_BCR, (speed | duplexMode));
+    MDIOPhyRegWrite(mdio, phyAddr, PHY_BCR, (speed | duplexMode));
 
     return TRUE;
 }
@@ -231,7 +231,7 @@ unsigned int PhyConfigure(unsigned int mdioBaseAddr, unsigned int phyAddr,
  * \brief   This function ask the phy device to start auto negotiation.
  *          
  *
- * \param   mdioBaseAddr  Base Address of the MDIO Module Registers.
+ * \param   mdio  MDIO Module Control.
  * \param   phyAddr       PHY Adress.
  * \param   advVal        Autonegotiation advertisement value
  * \param   gigAdvVal     Gigabit capability advertisement value
@@ -252,13 +252,13 @@ unsigned int PhyConfigure(unsigned int mdioBaseAddr, unsigned int phyAddr,
  *          FALSE if autonegotiation not started
  *
  **/
-unsigned int PhyAutoNegotiate(unsigned int mdioBaseAddr, unsigned int phyAddr,
+unsigned int PhyAutoNegotiate(mdioControl *mdio, unsigned int phyAddr,
                               unsigned short *advPtr, unsigned short *gigAdvPtr)
 {
-    volatile unsigned short data;
-    volatile unsigned short anar;
+    unsigned short data;
+    unsigned short anar;
 
-    if(MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_BCR, &data) != TRUE )
+    if(MDIOPhyRegRead(mdio, phyAddr, PHY_BCR, &data) != TRUE )
     {
         return FALSE;
     }
@@ -273,29 +273,29 @@ unsigned int PhyAutoNegotiate(unsigned int mdioBaseAddr, unsigned int phyAddr,
     }
    
     /* Enable Auto Negotiation */
-    MDIOPhyRegWrite(mdioBaseAddr, phyAddr, PHY_BCR, data);
+    MDIOPhyRegWrite(mdio, phyAddr, PHY_BCR, data);
 
-    if(MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_BCR, &data) != TRUE )
+    if(MDIOPhyRegRead(mdio, phyAddr, PHY_BCR, &data) != TRUE )
     {
         return FALSE;
     }
 
     /* Write Auto Negotiation capabilities */
-    MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_AUTONEG_ADV, &anar);
+    MDIOPhyRegRead(mdio, phyAddr, PHY_AUTONEG_ADV, &anar);
     anar &= ~PHY_ADV_VAL_MASK;
-    MDIOPhyRegWrite(mdioBaseAddr, phyAddr, PHY_AUTONEG_ADV, (anar |(*advPtr)));
+    MDIOPhyRegWrite(mdio, phyAddr, PHY_AUTONEG_ADV, (anar |(*advPtr)));
 
     /* Write Auto Negotiation Gigabyte capabilities */
     anar = 0;
-    MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_1000BT_CONTROL, &anar);
+    MDIOPhyRegRead(mdio, phyAddr, PHY_1000BT_CONTROL, &anar);
     anar &= ~PHY_GIG_ADV_VAL_MASK;
-    MDIOPhyRegWrite(mdioBaseAddr, phyAddr, PHY_1000BT_CONTROL,
+    MDIOPhyRegWrite(mdio, phyAddr, PHY_1000BT_CONTROL,
                     (anar |(*gigAdvPtr)));
 
     data |= PHY_AUTONEG_RESTART;
 
     /* Start Auto Negotiation */
-    MDIOPhyRegWrite(mdioBaseAddr, phyAddr, PHY_BCR, data);
+    MDIOPhyRegWrite(mdio, phyAddr, PHY_BCR, data);
 
     return TRUE;
 }
@@ -303,18 +303,18 @@ unsigned int PhyAutoNegotiate(unsigned int mdioBaseAddr, unsigned int phyAddr,
 /**
  * \brief   Returns the status of Auto Negotiation completion.
  *
- * \param   mdioBaseAddr  Base Address of the MDIO Module Registers.
+ * \param   mdio  MDIO Module Control.
  * \param   phyAddr       PHY Adress.
  *
  * \return  Auto negotiation completion status \n
  *          TRUE if auto negotiation is completed
  *          FALSE if auto negotiation is not completed
  **/
-unsigned int PhyAutoNegStatusGet(unsigned int mdioBaseAddr, unsigned int phyAddr)
+unsigned int PhyAutoNegStatusGet(mdioControl *mdio, unsigned int phyAddr)
 {
-    volatile unsigned short data;
+    unsigned short data;
 
-    MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_BSR, &data);
+    MDIOPhyRegRead(mdio, phyAddr, PHY_BSR, &data);
 
     /* Auto negotiation completion status */
     if(PHY_AUTONEG_COMPLETE == (data & (PHY_AUTONEG_STATUS)))
@@ -328,7 +328,7 @@ unsigned int PhyAutoNegStatusGet(unsigned int mdioBaseAddr, unsigned int phyAddr
 /**
  * \brief   Reads the Link Partner Ability register of the PHY.
  *
- * \param   mdioBaseAddr    Base Address of the MDIO Module Registers.
+ * \param   mdio    MDIO Module Control.
  * \param   phyAddr         PHY Adress.
  * \param   ptnerAblty      Pointer to which partner ability will be written.
  * \param   gbpsPtnerAblty  Pointer to which Giga bit capability will be written.
@@ -343,19 +343,19 @@ unsigned int PhyAutoNegStatusGet(unsigned int mdioBaseAddr, unsigned int phyAddr
  *          TRUE if reading successful
  *          FALSE if reading failed
  **/
-unsigned int PhyPartnerAbilityGet(unsigned int mdioBaseAddr, 
+unsigned int PhyPartnerAbilityGet(mdioControl *mdio, 
                                   unsigned int phyAddr,
                                   unsigned short *ptnerAblty,
                                   unsigned short *gbpsPtnerAblty)
 {
     unsigned int status;
 
-    status = MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_LINK_PARTNER_ABLTY,
+    status = MDIOPhyRegRead(mdio, phyAddr, PHY_LINK_PARTNER_ABLTY,
                            ptnerAblty);
 
     if (*gbpsPtnerAblty != 0)
     {
-        status = status | MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_1000BT_STATUS,
+        status = status | MDIOPhyRegRead(mdio, phyAddr, PHY_1000BT_STATUS,
                                          gbpsPtnerAblty);
     }
 
@@ -365,7 +365,7 @@ unsigned int PhyPartnerAbilityGet(unsigned int mdioBaseAddr,
 /**
  * \brief   Reads the link status of the PHY.
  *
- * \param   mdioBaseAddr  Base Address of the MDIO Module Registers.
+ * \param   mdio  MDIO Module Control.
  * \param   phyAddr       PHY Adress.
  * \param   retries       The number of retries before indicating down status
  *
@@ -376,17 +376,17 @@ unsigned int PhyPartnerAbilityGet(unsigned int mdioBaseAddr,
  * \note    This reads both the basic status register of the PHY and the
  *          link register of MDIO for double check
  **/
-unsigned int PhyLinkStatusGet(unsigned int mdioBaseAddr,
+unsigned int PhyLinkStatusGet(mdioControl *mdio,
                               unsigned int phyAddr,
-                              volatile unsigned int retries)
+                              unsigned int retries)
 {
-    volatile unsigned short linkStatus;
+    unsigned short linkStatus;
  
     retries++;   
     while (retries)
     {
         /* First read the BSR of the PHY */
-        MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_BSR, &linkStatus);
+        MDIOPhyRegRead(mdio, phyAddr, PHY_BSR, &linkStatus);
 
         if(linkStatus & PHY_LINK_STATUS)
         {

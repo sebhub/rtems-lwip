@@ -42,6 +42,8 @@
 #ifndef _PHY_H_
 #define _PHY_H_
 
+#include "mdio.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -113,37 +115,37 @@ extern "C" {
 /**************************************************************************
                         API function Prototypes
 **************************************************************************/
-extern unsigned int PhyIDGet(unsigned int mdioBaseAddr,
+extern unsigned int PhyIDGet(mdioControl *mdio,
                              unsigned int phyAddr);
-extern unsigned int PhyLoopBackEnable(unsigned int mdioBaseAddr,
+extern unsigned int PhyLoopBackEnable(mdioControl *mdio,
                                       unsigned int phyAddr);
-extern unsigned int PhyLoopBackDisable(unsigned int mdioBaseAddr,
+extern unsigned int PhyLoopBackDisable(mdioControl *mdio,
                                        unsigned int phyAddr);
-extern unsigned int PhyReset(unsigned int mdioBaseAddr, unsigned int phyAddr);
-extern unsigned int PhyConfigure(unsigned int mdioBaseAddr,
+extern unsigned int PhyReset(mdioControl *mdio, unsigned int phyAddr);
+extern unsigned int PhyConfigure(mdioControl *mdio,
                                  unsigned int phyAddr,
                                  unsigned short speed,
                                  unsigned short duplexMode);
-extern unsigned int PhyAutoNegotiate(unsigned int mdioBaseAddr, 
+extern unsigned int PhyAutoNegotiate(mdioControl *mdio, 
                                      unsigned int phyAddr,
                                      unsigned short *advPtr,
                                      unsigned short *gigAdvPtr);
-extern unsigned int PhyRegRead(unsigned int mdioBaseAddr, 
+extern unsigned int PhyRegRead(mdioControl *mdio, 
                                unsigned int phyAddr,
                                unsigned int regIdx, 
                                unsigned short *regValAdr);
-extern void PhyRegWrite(unsigned int mdioBaseAddr, 
+extern void PhyRegWrite(mdioControl *mdio, 
                         unsigned int phyAddr,
                         unsigned int regIdx, 
                         unsigned short regVal);
-extern unsigned int PhyPartnerAbilityGet(unsigned int mdioBaseAddr,
+extern unsigned int PhyPartnerAbilityGet(mdioControl *mdio,
                                          unsigned int phyAddr,
                                          unsigned short *ptnerAblty,
                                          unsigned short *gbpsPtnerAblty);
-extern unsigned int PhyLinkStatusGet(unsigned int mdioBaseAddr,
+extern unsigned int PhyLinkStatusGet(mdioControl *mdio,
                                      unsigned int phyAddr,
-                                     volatile unsigned int retries);
-extern unsigned int PhyAutoNegStatusGet(unsigned int mdioBaseAddr, 
+                                     unsigned int retries);
+extern unsigned int PhyAutoNegStatusGet(mdioControl *mdio, 
                                         unsigned int phyAddr);
 #ifdef __cplusplus
 }
