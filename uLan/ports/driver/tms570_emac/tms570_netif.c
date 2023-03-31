@@ -130,7 +130,9 @@ static
 #endif /*__TI_COMPILER_VERSION__*/
 SYS_IRQ_HANDLER_FNC(tms570_eth_irq);
 static void tms570_eth_rx_pbuf_refill(struct tms570_netif_state *nf_state, int);
+#if LWIP_NETIF_API
 static void tms570_eth_rx_pbuf_refill_single(struct netif *);
+#endif
 static void tms570_eth_hw_set_RX_HDP(struct tms570_netif_state *nf_state, volatile struct emac_rx_bd *new_head);
 static void tms570_eth_hw_set_TX_HDP(struct tms570_netif_state *nf_state, volatile struct emac_tx_bd *new_head);
 static void tms570_eth_hw_set_hwaddr(struct tms570_netif_state *nf_state, uint8_t *mac_addr);
@@ -1014,11 +1016,13 @@ tms570_eth_hw_set_TX_HDP(struct tms570_netif_state *nf_state, volatile struct em
     CHANNEL);
 }
 
+#if LWIP_NETIF_API
 static void
 tms570_eth_rx_pbuf_refill_single(struct netif *netif)
 {
   tms570_eth_rx_pbuf_refill(netif->state, 1);
 }
+#endif
 
 static void
 tms570_eth_rx_pbuf_refill(struct tms570_netif_state *nf_state, int single_fl)
@@ -1119,6 +1123,7 @@ SYS_IRQ_HANDLER_FNC(tms570_eth_irq){
     sys_sem_signal_from_ISR(&nf_state->intPend_sem);
 }
 
+#if LWIP_NETIF_API
 void
 tms570_eth_memp_avaible(int type)
 {
@@ -1128,8 +1133,7 @@ tms570_eth_memp_avaible(int type)
     return;
   netifapi_netif_common(eth_lwip_get_netif(0), tms570_eth_rx_pbuf_refill_single, NULL);
 }
-
-
+#endif
 
 #if TMS570_NETIF_DEBUG
 
