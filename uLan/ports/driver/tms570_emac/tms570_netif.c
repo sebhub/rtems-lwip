@@ -57,7 +57,6 @@
 #include "eth_lwip.h"
 #include "tms570_netif.h"
 #include "ti_drv_emac.h"
-#include "ti_drv_mdio.h"
 #include "phy_dp83848h.h"
 #include "tms570_emac.h"
 
@@ -162,7 +161,12 @@ tms570_eth_init_state(void)
   nf_state->emac_base = &TMS570_EMACM;
   nf_state->emac_ctrl_base = &TMS570_EMACC;
   nf_state->emac_ctrl_ram = EMAC_CTRL_RAM_BASE;
-  nf_state->mdio_base = &TMS570_MDIO;
+  nf_state->mdio.base.init = TIMDIOInit;
+  nf_state->mdio.base.phyAliveStatusGet = TIMDIOPhyAliveStatusGet;
+  nf_state->mdio.base.phyLinkStatusGet = TIMDIOPhyLinkStatusGet;
+  nf_state->mdio.base.phyRegRead = TIMDIOPhyRegRead;
+  nf_state->mdio.base.phyRegWrite = TIMDIOPhyRegWrite;
+  nf_state->mdio.baseAddr = (uintptr_t) &TMS570_MDIO;
   nf_state->phy_addr = DEFAULT_PHY_ADDR;
 #if !NO_SYS
   nf_state->waitTicksForPHYAneg = TICKS_PHY_AUTONEG;
@@ -293,8 +297,8 @@ tms570_eth_init_find_PHY(struct tms570_netif_state *nf_state)
   uint16_t regContent;
   uint32_t physAlive;
 
-  MDIOPhyRegRead(nf_state->mdio_base, nf_state->phy_addr, PHY_BMSR, &regContent);
-  physAlive = MDIOPhyAliveStatusGet(nf_state->mdio_base);
+  MDIOPhyRegRead(&nf_state->mdio.base, nf_state->phy_addr, PHY_BMSR, &regContent);
+  physAlive = MDIOPhyAliveStatusGet(&nf_state->mdio.base);
   /* Find first alive PHY -- or use default if alive */
   if (!(physAlive & (1 << nf_state->phy_addr))) {
     for (index = 0; index < NUM_OF_PHYs; index++) {
@@ -307,11 +311,11 @@ tms570_eth_init_find_PHY(struct tms570_netif_state *nf_state)
          * reading random register, making MDIO set
          * alive bit for current PHY
          */
-        MDIOPhyRegRead(nf_state->mdio_base, index,
+        MDIOPhyRegRead(&nf_state->mdio.base, index,
                        PHY_BMCR, &regContent);
 
         /* Get updated register */
-        physAlive = MDIOPhyAliveStatusGet(nf_state->mdio_base);
+        physAlive = MDIOPhyAliveStatusGet(&nf_state->mdio.base);
         if (physAlive & (1 << index)) {
           nf_state->phy_addr = index;
           break;
@@ -368,7 +372,7 @@ tms570_eth_init_hw(struct tms570_netif_state *nf_state)
   /* Initialize EMAC control module and EMAC module */
   EMACInit(nf_state->emac_ctrl_base, nf_state->emac_base);
   /* Initialize MDIO module (reset) */
-  MDIOInit(nf_state->mdio_base, 0x0, 0x0);
+  MDIOInit(&nf_state->mdio.base, 0x0, 0x0);
 
   if ((retVal = tms570_eth_init_find_PHY(nf_state)) != ERR_OK) {
     tms570_eth_debug_printf("tms570_eth_init_find_PHY: %d", retVal);
@@ -378,7 +382,7 @@ tms570_eth_init_hw(struct tms570_netif_state *nf_state)
    * Start autonegotiation and check on completion later or
    * when complete link register will be updated
    */
-  PHY_auto_negotiate(nf_state->mdio_base, nf_state->phy_addr,
+  PHY_auto_negotiate(&nf_state->mdio.base, nf_state->phy_addr,
                      PHY_100BASETXDUPL_m | PHY_100BASETX_m |
                      PHY_10BASETDUPL_m | PHY_10BASET_m);
   tms570_eth_debug_printf("autoneg started -- check on cable if it's connected!\r\n");
@@ -442,19 +446,19 @@ tms570_eth_init_hw_post_init(struct tms570_netif_state *nf_state)
   /* wait for autonegotiation to be done or continue, when delay was reached */
   uint32_t timeToWake = nf_state->waitTicksForPHYAneg + sys_jiffies();
 
-  while (PHY_is_done_auto_negotiate(nf_state->mdio_base, nf_state->phy_addr) == false &&
+  while (PHY_is_done_auto_negotiate(&nf_state->mdio.base, nf_state->phy_addr) == false &&
          timeToWake > sys_jiffies())
     sys_arch_delay(20);
   /* XXX: if init is not done at the startup,
    * but couple days later, this might cause troubles */
 
-  if (PHY_is_done_auto_negotiate(nf_state->mdio_base, nf_state->phy_addr) != false)
+  if (PHY_is_done_auto_negotiate(&nf_state->mdio.base, nf_state->phy_addr) != false)
     tms570_eth_debug_printf("autoneg finished\n");
   else
     tms570_eth_debug_printf("autoneg timeout\n");
 
   /* provide informations retrieved from autoneg to EMAC module */
-  PHY_partner_ability_get(nf_state->mdio_base, nf_state->phy_addr, &regContent);
+  PHY_partner_ability_get(&nf_state->mdio.base, nf_state->phy_addr, &regContent);
   if (regContent & (PHY_100BASETXDUPL_m | PHY_10BASETDUPL_m)) {
     EMACDuplexSet(nf_state->emac_base, 1);
     /* this is right place to implement transmit flow control if desired --

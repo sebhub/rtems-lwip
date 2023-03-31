@@ -32,7 +32,9 @@
 *
 */
 
+#ifndef __rtems__
 #include "ti_drv_mdio.h"
+#endif /* __rtems__ */
 #include "phy_dp83848h.h"
 #ifdef __rtems__
 #include "mdio.h"
@@ -54,53 +56,53 @@
 #endif
 
 void
-PHY_reset(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr)
+PHY_reset(mdioControl *mdio, uint32_t phyAddr)
 {
-  volatile unsigned short regContent;
+  unsigned short regContent;
 
-  MDIOPhyRegWrite(mdioBaseAddr, phyAddr, PHY_BMCR, PHY_RESET_m);
-  while (MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_BMCR, &regContent) & PHY_RESET_m);
+  MDIOPhyRegWrite(mdio, phyAddr, PHY_BMCR, PHY_RESET_m);
+  while (MDIOPhyRegRead(mdio, phyAddr, PHY_BMCR, &regContent) & PHY_RESET_m);
 }
 
 uint32_t
-PHY_partner_ability_get(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr, unsigned short *regContent)
+PHY_partner_ability_get(mdioControl *mdio, uint32_t phyAddr, unsigned short *regContent)
 {
-  return (MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_ANLPAR, regContent));
+  return (MDIOPhyRegRead(mdio, phyAddr, PHY_ANLPAR, regContent));
 }
 
 uint32_t
-PHY_start_auto_negotiate(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr, unsigned short advVal)
+PHY_start_auto_negotiate(mdioControl *mdio, uint32_t phyAddr, unsigned short advVal)
 {
-  volatile unsigned short regContent = 0;
+  unsigned short regContent = 0;
 
   /* Enable Auto Negotiation */
-  if (MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_BMCR, &regContent) != TRUE) {
+  if (MDIOPhyRegRead(mdio, phyAddr, PHY_BMCR, &regContent) != TRUE) {
     return FALSE;
   }
   regContent |= PHY_AUTONEG_EN_m;
-  MDIOPhyRegWrite(mdioBaseAddr, phyAddr, PHY_BMCR, regContent);       /* originally ...HY_BMCR, PHY_RESET_m | PHY_AUTONEG_EN_m); */
+  MDIOPhyRegWrite(mdio, phyAddr, PHY_BMCR, regContent);       /* originally ...HY_BMCR, PHY_RESET_m | PHY_AUTONEG_EN_m); */
 
   /* Write Auto Negotiation capabilities */
-  if (MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_ANAR, &regContent) != TRUE) {
+  if (MDIOPhyRegRead(mdio, phyAddr, PHY_ANAR, &regContent) != TRUE) {
     return FALSE;
   }
   regContent |= advVal;
-  MDIOPhyRegWrite(mdioBaseAddr, phyAddr, PHY_ANAR, regContent);
+  MDIOPhyRegWrite(mdio, phyAddr, PHY_ANAR, regContent);
 
   /* Start Auto Negotiation */
-  MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_BMCR, &regContent);
+  MDIOPhyRegRead(mdio, phyAddr, PHY_BMCR, &regContent);
   regContent |= PHY_AUTONEG_REST;
-  MDIOPhyRegWrite(mdioBaseAddr, phyAddr, PHY_BMCR, regContent);
+  MDIOPhyRegWrite(mdio, phyAddr, PHY_BMCR, regContent);
 
   return TRUE;   /* request to PHY through EMAC for autonegotiation established */
 }
 
 uint32_t
-PHY_is_done_auto_negotiate(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr)
+PHY_is_done_auto_negotiate(mdioControl *mdio, uint32_t phyAddr)
 {
-  volatile unsigned short regContent;
+  unsigned short regContent;
 
-  if (MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_BMSR, &regContent) != TRUE) {
+  if (MDIOPhyRegRead(mdio, phyAddr, PHY_BMSR, &regContent) != TRUE) {
     return FALSE;
   }
   if ((regContent & PHY_A_NEG_COMPLETE_m) == 0)
@@ -109,25 +111,25 @@ PHY_is_done_auto_negotiate(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAdd
 }
 
 uint32_t
-PHY_auto_negotiate(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr, unsigned short advVal)
+PHY_auto_negotiate(mdioControl *mdio, uint32_t phyAddr, unsigned short advVal)
 {
-  if (PHY_start_auto_negotiate(mdioBaseAddr, phyAddr, advVal) == FALSE)
+  if (PHY_start_auto_negotiate(mdio, phyAddr, advVal) == FALSE)
     return FALSE;
 
-  while (PHY_is_done_auto_negotiate(mdioBaseAddr, phyAddr) == FALSE);
+  while (PHY_is_done_auto_negotiate(mdio, phyAddr) == FALSE);
 
   return TRUE;
 }
 
 uint32_t
-PHY_link_status_get(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr, volatile uint32_t retries)
+PHY_link_status_get(mdioControl *mdio, uint32_t phyAddr, uint32_t retries)
 {
-  volatile unsigned short linkStatus;
-  volatile uint32_t retVal = TRUE;
+  unsigned short linkStatus;
+  uint32_t retVal = TRUE;
 
   while (retVal == TRUE) {
     /* Read the BSR of the PHY */
-    MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_BMSR, &linkStatus);
+    MDIOPhyRegRead(mdio, phyAddr, PHY_BMSR, &linkStatus);
 
     if (linkStatus & PHY_LINK_STATUS_m) {
       break;
@@ -141,42 +143,42 @@ PHY_link_status_get(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr, vola
 }
 
 uint32_t
-PHY_RMII_mode_get(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr)
+PHY_RMII_mode_get(mdioControl *mdio, uint32_t phyAddr)
 {
-  volatile unsigned short regContent;
+  unsigned short regContent;
 
   /* Read the RBR of the PHY */
-  MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_RBR, &regContent);
+  MDIOPhyRegRead(mdio, phyAddr, PHY_RBR, &regContent);
   return (regContent & PHY_RMII_MODE);
 }
 
 void
-PHY_MII_mode_set(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr, uint32_t mode)
+PHY_MII_mode_set(mdioControl *mdio, uint32_t phyAddr, uint32_t mode)
 {
-  volatile unsigned short regContent;
+  unsigned short regContent;
 
   /* Read the RBR of the PHY */
-  MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_RBR, &regContent);
+  MDIOPhyRegRead(mdio, phyAddr, PHY_RBR, &regContent);
   /* Write the RBR of the PHY */
   regContent &= 0x1f;
   regContent |= ( mode << 5 );
-  MDIOPhyRegWrite(mdioBaseAddr, phyAddr, PHY_RBR, regContent);
+  MDIOPhyRegWrite(mdio, phyAddr, PHY_RBR, regContent);
 }
 
 void
-PHY_Power_Down(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr)
+PHY_Power_Down(mdioControl *mdio, uint32_t phyAddr)
 {
-  volatile unsigned short regContent;
+  unsigned short regContent;
 
-  MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_BMCR, &regContent);
-  MDIOPhyRegWrite(mdioBaseAddr, phyAddr, PHY_BMCR, regContent | PHY_POWERDOWN_m);
+  MDIOPhyRegRead(mdio, phyAddr, PHY_BMCR, &regContent);
+  MDIOPhyRegWrite(mdio, phyAddr, PHY_BMCR, regContent | PHY_POWERDOWN_m);
 }
 
 void
-PHY_Power_Up(volatile tms570_mdio_t *mdioBaseAddr, uint32_t phyAddr)
+PHY_Power_Up(mdioControl *mdio, uint32_t phyAddr)
 {
-  volatile unsigned short regContent;
+  unsigned short regContent;
 
-  MDIOPhyRegRead(mdioBaseAddr, phyAddr, PHY_BMCR, &regContent);
-  MDIOPhyRegWrite(mdioBaseAddr, phyAddr, PHY_BMCR, regContent & ~PHY_POWERDOWN_m);
+  MDIOPhyRegRead(mdio, phyAddr, PHY_BMCR, &regContent);
+  MDIOPhyRegWrite(mdio, phyAddr, PHY_BMCR, regContent & ~PHY_POWERDOWN_m);
 }

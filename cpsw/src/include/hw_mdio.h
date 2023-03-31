@@ -43,6 +43,10 @@
 #ifndef _HW_MDIO_H_
 #define _HW_MDIO_H_
 
+#include "mdio.h"
+
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -249,6 +253,23 @@ extern "C" {
 #define MDIO_USERPHYSEL1_PHYADRMON (0x0000001Fu)
 #define MDIO_USERPHYSEL1_PHYADRMON_SHIFT (0x00000000u)
 
+typedef struct {
+    mdioControl base;
+    uintptr_t baseAddr;
+} tiMDIOControl;
+
+void TIMDIOInit(mdioControl *self, unsigned int mdioInputFreq,
+    unsigned int mdioOutputFreq);
+
+unsigned int TIMDIOPhyAliveStatusGet(mdioControl *self);
+
+unsigned int TIMDIOPhyLinkStatusGet(mdioControl *self);
+
+unsigned int TIMDIOPhyRegRead(mdioControl *self,
+    unsigned int phyAddr, unsigned int regNum, unsigned short *dataPtr);
+
+void TIMDIOPhyRegWrite(mdioControl *self, unsigned int phyAddr,
+    unsigned int regNum, unsigned short regVal);
 
 #ifdef __cplusplus
 }

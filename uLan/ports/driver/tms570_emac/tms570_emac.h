@@ -5,6 +5,7 @@
 #include "netif/etharp.h"
 #include "lwip/sys.h"
 #include "bsp/tms570.h"
+#include "hw_mdio.h"
 
 /*to rtems*/
 #define EMAC_CTRL_RAM_BASE      (0xFC520000U)
@@ -93,8 +94,8 @@ struct tms570_netif_state {
   volatile tms570_emacc_t *emac_ctrl_base;
   volatile u32_t emac_ctrl_ram;
 
-  /* MDIO base address */
-  volatile tms570_mdio_t *mdio_base;
+  /* MDIO module control */
+  tiMDIOControl mdio;
 
   /* The RX/TX channel 0 state description
    * (keeps track of used/freed Buffer Descriptors)
