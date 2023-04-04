@@ -1099,6 +1099,7 @@ tms570_eth_rx_pbuf_refill(struct tms570_netif_state *nf_state, int single_fl)
     } else {
       q = new_pbuf;
       for (;; ) {
+        rtems_cache_invalidate_multiple_data_lines(q->payload, q->len);
         curr_bd->bufptr = tms570_eth_swap_bufptr(q->payload);
         curr_bd->bufoff_len = tms570_eth_swap(q->len);
         curr_bd->flags_pktlen = tms570_eth_swap(EMAC_DSC_FLAG_OWNER);
