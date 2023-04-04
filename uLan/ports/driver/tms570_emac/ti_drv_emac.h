@@ -164,6 +164,25 @@ EMACDuplexSet(volatile tms570_emacm_t *emacBase, int duplexMode)
 }
 
 /**
+ * \brief   This API sets the RMII interface speeed for MAC.
+ *
+ * \param   emacBase     Base address of the EMAC Module registers.
+ * \param   use100Mbps   indicates if the RMII interface speed shall be 100 Mbps.
+ *
+ * \return  None
+ *
+ **/
+static inline void
+EMACUse100Mbps(volatile tms570_emacm_t *emacBase, bool use100Mbps)
+{
+  if (use100Mbps) {
+    emacBase->MACCONTROL |= TMS570_EMACM_MACCONTROL_RMIISPEED;
+  } else {
+    emacBase->MACCONTROL &= ~TMS570_EMACM_MACCONTROL_RMIISPEED;
+  }
+}
+
+/**
  * \brief   API to enable the transmit in the TX Control Register
  *          After the transmit is enabled, any write to TXHDP of
  *          a channel will start transmission
