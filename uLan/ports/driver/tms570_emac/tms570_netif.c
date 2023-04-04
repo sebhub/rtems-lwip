@@ -78,10 +78,6 @@
 /* take in account oversized frames */
 #define MAX_TRANSFER_UNIT           1500
 
-#ifndef TMS570_MMR_SELECT_GMII_SEL
-  #define TMS570_MMR_SELECT_GMII_SEL TMS570_BALL_XX_GMII_SEL
-#endif
-
 #ifndef TMS570_BALL_K19_MII_RXCLK
   #define TMS570_BALL_K19_MII_RXCLK TMS570_BALL_K19_MII_RX_CLK
 #endif
@@ -333,35 +329,34 @@ tms570_eth_init_find_PHY(struct tms570_netif_state *nf_state)
   return ERR_OK;
 }
 
+static const uint32_t tms570_eth_pin_config[] = {
+  TMS570_MMR_SELECT_MII_MODE,
+  TMS570_BALL_V5_MDCLK,
+  TMS570_BALL_G3_MDIO,
+  TMS570_BALL_H19_MII_TXEN,
+  TMS570_BALL_E18_MII_TXD_3,
+  TMS570_BALL_R2_MII_TXD_2,
+  TMS570_BALL_J19_MII_TXD_1,
+  TMS570_BALL_J18_MII_TXD_0,
+  TMS570_BALL_D19_MII_TX_CLK,
+  TMS570_BALL_H18_MII_RXD_3,
+  TMS570_BALL_G19_MII_RXD_2,
+  TMS570_BALL_A14_MII_RXD_1,
+  TMS570_BALL_P1_MII_RXD_0,
+  TMS570_BALL_K19_MII_RXCLK,
+  TMS570_BALL_N19_MII_RX_ER,
+  TMS570_BALL_B11_MII_RX_DV,
+  TMS570_BALL_B4_MII_CRS,
+  TMS570_BALL_F3_MII_COL
+};
+
 static void
 tms570_eth_init_set_pinmux(void)
 {
-#if defined(__rtems__)
-  TMS570_IOMM.KICK_REG0 = 0x83E70B13U;
-  TMS570_IOMM.KICK_REG1 = 0x95A4F1E0U;
-
-  tms570_bsp_pin_set_function(TMS570_BALL_V5_MDCLK, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_set_function(TMS570_BALL_G3_MDIO, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_set_function(TMS570_BALL_H19_MII_TXEN, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_set_function(TMS570_BALL_E18_MII_TXD_3, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_set_function(TMS570_BALL_R2_MII_TXD_2, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_set_function(TMS570_BALL_J19_MII_TXD_1, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_set_function(TMS570_BALL_J18_MII_TXD_0, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_set_function(TMS570_BALL_D19_MII_TX_CLK, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_set_function(TMS570_BALL_H18_MII_RXD_3, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_set_function(TMS570_BALL_G19_MII_RXD_2, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_set_function(TMS570_BALL_A14_MII_RXD_1, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_set_function(TMS570_BALL_P1_MII_RXD_0, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_set_function(TMS570_BALL_K19_MII_RXCLK, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_set_function(TMS570_BALL_N19_MII_RX_ER, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_set_function(TMS570_BALL_B11_MII_RX_DV, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_set_function(TMS570_BALL_B4_MII_CRS, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_set_function(TMS570_BALL_F3_MII_COL, TMS570_PIN_FNC_AUTO);
-  tms570_bsp_pin_clear_function(TMS570_MMR_SELECT_GMII_SEL, TMS570_PIN_FNC_AUTO);
-
-  TMS570_IOMM.KICK_REG0 = 0;
-  TMS570_IOMM.KICK_REG1 = 0;
-#endif /*__rtems__*/
+  tms570_pin_config_prepare();
+  tms570_pin_config_array_apply(tms570_eth_pin_config,
+                                RTEMS_ARRAY_SIZE(tms570_eth_pin_config));
+  tms570_pin_config_complete();
 }
 
 static err_t
