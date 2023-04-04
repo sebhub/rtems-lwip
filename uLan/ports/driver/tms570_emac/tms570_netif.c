@@ -468,6 +468,12 @@ tms570_eth_init_hw_post_init(struct tms570_netif_state *nf_state)
     return UNKN_DUPLEX_MODE;
   }
 
+  if (regContent & (PHY_100BASETX_m | PHY_100BASETXDUPL_m)) {
+    EMACUse100Mbps(nf_state->emac_base, true);
+  } else {
+    EMACUse100Mbps(nf_state->emac_base, false);
+  }
+
   /* enable hostpend interrupts in emac module */
   nf_state->emac_base->MACINTMASKSET |= TMS570_EMACM_MACINTMASKSET_HOSTMASK;
 
