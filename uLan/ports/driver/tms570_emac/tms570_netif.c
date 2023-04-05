@@ -120,6 +120,8 @@
 /* startup init indicator */
 static bool initialized = false;
 
+#define pk(...) do { rtems_interrupt_level level; rtems_interrupt_disable(level); printk(__VA_ARGS__); rtems_interrupt_enable(level); } while (0)
+
 /*private?*/
 #if !defined(__TI_COMPILER_VERSION__)
 static
@@ -691,6 +693,8 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
     if (curr_bd == NULL)
       goto error_out_of_descriptors;
 
+    // FIXME why works with pk()?
+    //pk("TB %08x %08x %u %u\n", pbuf, q->payload, q->len, ntohl(*(uint32_t*)((uint8_t*)q->payload + 0x26)));
     curr_bd->bufptr = tms570_eth_swap_bufptr(q->payload);
     curr_bd->bufoff_len = tms570_eth_swap(q->len & 0xFFFF);
 
@@ -734,8 +738,11 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
 
   if (txch->active_tail == NULL) {
     txch->active_head = packet_head;
+	    pk("TN %u %u %08x\n", txch->active, txch->inactive, packet_head->pbuf->payload);
     tms570_eth_hw_set_TX_HDP(nf_state, packet_head);
   } else {
+    uint32_t flags_pktlen;
+
     /* Chain the bd's. If the DMA engine already reached the
      * end of the chain, the EOQ will be set. In that case,
      * the HDP shall be written again.
@@ -748,8 +755,13 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
      * case the transmission stopped and we need to write the
      * pointer to newly added BDs to the TX HDP
      */
-    if (tms570_eth_swap(curr_bd->flags_pktlen) & EMAC_DSC_FLAG_EOQ) {
+    flags_pktlen = tms570_eth_swap(curr_bd->flags_pktlen);
+    if ((flags_pktlen & (EMAC_DSC_FLAG_EOQ | EMAC_DSC_FLAG_OWNER)) == EMAC_DSC_FLAG_EOQ) {
+	    pk("TRQ %u %u %08x %08x\n", txch->active, txch->inactive, flags_pktlen, packet_head->pbuf->payload);
+      curr_bd->flags_pktlen = tms570_eth_swap(flags_pktlen & ~EMAC_DSC_FLAG_EOQ);
       tms570_eth_hw_set_TX_HDP(nf_state, packet_head);
+    } else {
+	    pk("TC %u %u %08x\n", txch->active, txch->inactive, flags_pktlen);
     }
   }
   txch->active_tail = packet_tail;
@@ -757,6 +769,7 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
   return ERR_OK;
 
 error_out_of_descriptors:
+  //pk("TOOD\n");
   pbuf_free(pbuf);
   return ERR_IF;
 }
@@ -872,6 +885,7 @@ tms570_eth_process_irq_rx(void *arg)
 
 
     LINK_STATS_INC(link.recv);
+    //pk("R %08x %08x %u %u\n", pbuf, pbuf->payload, pbuf->len, ntohl(*(uint32_t*)((uint8_t*)pbuf->payload + 0x26)));
 
     /* Process the packet */
     /* ethernet_input((struct pbuf *)pbuf, netif) */
@@ -920,6 +934,7 @@ tms570_eth_process_irq_tx(void *arg)
   /* Traverse the list of BDs used for transmission --
    * stop on the first unused
    */
+  //pk("TIRQ %08x %08x\n", curr_bd, tms570_eth_swap(curr_bd->flags_pktlen));
   while ((curr_bd != NULL) && (tms570_eth_swap(curr_bd->flags_pktlen) & EMAC_DSC_FLAG_SOP)) {
     /* Make sure the transmission is over */
     if (tms570_eth_swap(curr_bd->flags_pktlen) & EMAC_DSC_FLAG_OWNER) {
@@ -932,6 +947,7 @@ tms570_eth_process_irq_tx(void *arg)
     while (!(tms570_eth_swap(curr_bd->flags_pktlen) & EMAC_DSC_FLAG_EOP)) {
       ++desc_count;
       curr_bd = tms570_eth_swap_txp(curr_bd->next);
+  //pk("TEOP %08x %08x\n", curr_bd, tms570_eth_swap(curr_bd->flags_pktlen));
     }
 
     txch->inactive += desc_count;
@@ -972,6 +988,7 @@ tms570_eth_process_irq_tx(void *arg)
      * Sidenote: Each fragment of the single packet points
      * to the same pbuf
      */
+    //pk("TF %u %u %08x\n", txch->active, txch->inactive, start_of_packet_bd->pbuf->payload);
     pbuf_free(start_of_packet_bd->pbuf);
 
     LINK_STATS_INC(link.xmit);
