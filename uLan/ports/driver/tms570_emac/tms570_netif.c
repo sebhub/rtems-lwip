@@ -748,8 +748,8 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
      * end of the chain, the EOQ will be set. In that case,
      * the HDP shall be written again.
      */
-    txch->active_tail->next = tms570_eth_swap_txp(packet_head);
     curr_bd = txch->active_tail;
+    curr_bd->next = tms570_eth_swap_txp(packet_head);
 
     /* We were too slow and the EMAC already read the
      * 'pNext = NULL' of the former txch->active_tail. In this
@@ -930,7 +930,7 @@ tms570_eth_process_irq_tx(void *arg)
   txch = &(nf_state->txch);
 
   start_of_packet_bd = txch->active_head;
-  curr_bd = txch->active_head;
+  curr_bd = start_of_packet_bd;
 
   /* Traverse the list of BDs used for transmission --
    * stop on the first unused
@@ -996,7 +996,7 @@ tms570_eth_process_irq_tx(void *arg)
 
     /* Move to the next packet */
     start_of_packet_bd = txch->active_head;
-    curr_bd = txch->active_head;
+    curr_bd = start_of_packet_bd;
   }
 }
 
