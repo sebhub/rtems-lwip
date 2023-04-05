@@ -556,6 +556,8 @@ tms570_eth_init_buffer_descriptors(struct tms570_netif_state *nf_state)
 #if TMS570_NETIF_DEBUG
   tms570_eth_debug_printf("pocet bd %d\n", num_bd);
 #endif
+  txch->inactive = num_bd;
+  txch->active = 0;
 
   while (num_bd > 0) {
     volatile struct emac_tx_bd *next_txbd = curr_txbd + 1;
@@ -577,6 +579,8 @@ tms570_eth_init_buffer_descriptors(struct tms570_netif_state *nf_state)
   rxch->freed_pbuf_len = MAX_RX_PBUF_ALLOC*PBUF_LEN_MAX;
 
   num_bd = ((SIZE_EMAC_CTRL_RAM >> 1) / sizeof(struct emac_rx_bd))-1;
+  rxch->inactive = num_bd;
+  rxch->active = 0;
 
   while (num_bd > 0) {
     volatile struct emac_rx_bd *next_rxbd = curr_rxbd + 1;
@@ -682,6 +686,7 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
   /* Copy pbuf information into TX BDs --
    * remember that the pbuf for a single packet might be chained!
    */
+  uint32_t desc_count = 0;
   for (q = pbuf; q != NULL; q = q->next) {
     if (curr_bd == NULL)
       goto error_out_of_descriptors;
@@ -696,6 +701,7 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
     curr_bd->pbuf = pbuf;
     packet_tail = curr_bd;
     curr_bd = tms570_eth_swap_txp(curr_bd->next);
+    ++desc_count;
   }
   if (padlen) {
     if (curr_bd == NULL)
@@ -706,16 +712,20 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
      * random memory. Reuse IP and possibly TCP/UDP header
      * of given frame as padding
      */
+    pk("TP %08x %u\n", pbuf, padlen);
     curr_bd->bufptr = packet_head->bufptr;
     curr_bd->bufoff_len = tms570_eth_swap(padlen);
     curr_bd->pbuf = pbuf;
     packet_tail = curr_bd;
     curr_bd = tms570_eth_swap_txp(curr_bd->next);
+    ++desc_count;
   }
   /* Indicate the end of the packet */
   packet_tail->next = NULL;
   packet_tail->flags_pktlen |= tms570_eth_swap(EMAC_DSC_FLAG_EOP);
 
+  txch->active += desc_count;
+  txch->inactive -= desc_count;
   txch->inactive_head = curr_bd;
   if (curr_bd == NULL)
     txch->inactive_tail = curr_bd;
@@ -918,9 +928,14 @@ tms570_eth_process_irq_tx(void *arg)
     }
 
     /* Find the last chunk of the packet */
-    while (!(tms570_eth_swap(curr_bd->flags_pktlen) & EMAC_DSC_FLAG_EOP))
+    uint32_t desc_count = 1;
+    while (!(tms570_eth_swap(curr_bd->flags_pktlen) & EMAC_DSC_FLAG_EOP)) {
+      ++desc_count;
       curr_bd = tms570_eth_swap_txp(curr_bd->next);
+    }
 
+    txch->inactive += desc_count;
+    txch->active -= desc_count;
     /* Remove flags for the transmitted BDs */
     start_of_packet_bd->flags_pktlen &= tms570_eth_swap(~EMAC_DSC_FLAG_SOP);
     curr_bd->flags_pktlen &= tms570_eth_swap(~EMAC_DSC_FLAG_EOP);
