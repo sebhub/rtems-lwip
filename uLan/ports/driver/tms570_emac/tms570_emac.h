@@ -44,6 +44,9 @@ struct emac_tx_bd {
 
   /* helper to know which pbuf this tx bd corresponds to */
   struct pbuf *pbuf;
+
+  /* The EOP increment is used to get from the SOP BD to the EOP BD */
+  size_t eop_increment;
 };
 
 /* EMAC RX Buffer descriptor data structure */
@@ -61,12 +64,14 @@ struct emac_rx_bd {
  * Helper struct to hold the data used to operate on a particular
  * receive channel
  */
-struct rxch{
-  volatile struct emac_rx_bd *active_head;
-  volatile struct emac_rx_bd *active_tail;
-  volatile struct emac_rx_bd *inactive_head;
-  volatile struct emac_rx_bd *inactive_tail;
-  s32_t freed_pbuf_len;
+struct rxch {
+  /*
+   * This is the index of the BD containing the least recently received
+   * Ethernet frame not handed over to the stack.
+   */
+  size_t head;
+
+  volatile struct emac_rx_bd *bds;
 };
 
 /**
@@ -74,10 +79,31 @@ struct rxch{
  * transmit channel
  */
 struct txch {
-  volatile struct emac_tx_bd *active_head;
-  volatile struct emac_tx_bd *active_tail;
-  volatile struct emac_tx_bd *inactive_head;
-  volatile struct emac_tx_bd *inactive_tail;
+  /*
+   * This is the index of the BD for the start of the next Ethernet frame to
+   * transmit.
+   */
+  size_t head;
+
+  /*
+   * This is the index of the BD containing the Ethernet frame least recently
+   * handed over to the EMAC.
+   */
+  size_t tail;
+
+  volatile struct emac_tx_bd *bds;
+};
+
+#define EMAC_RX_BD_COUNT LWIP_MIN((PBUF_POOL_SIZE / 2), 128)
+
+#define EMAC_TX_BD_COUNT 128
+
+#define EMAC_MIN_PKT_LEN 60
+
+struct cppi_ram {
+  struct emac_rx_bd rx_bds[EMAC_RX_BD_COUNT];
+  struct emac_tx_bd tx_bds[EMAC_TX_BD_COUNT];
+  uint8_t padding[EMAC_MIN_PKT_LEN];
 };
 
 /**
@@ -92,10 +118,7 @@ struct tms570_netif_state {
 
   /* EMAC controller base address */
   volatile tms570_emacc_t *emac_ctrl_base;
-  volatile u32_t emac_ctrl_ram;
-
-  /* MDIO module control */
-  tiMDIOControl mdio;
+  struct cppi_ram *emac_ctrl_ram;
 
   /* The RX/TX channel 0 state description
    * (keeps track of used/freed Buffer Descriptors)
@@ -103,11 +126,8 @@ struct tms570_netif_state {
   struct txch txch;
   struct rxch rxch;
 
-  /* Semaphores used for waking up the threads processing
-   * RX/TX packets in teh deferred manner.
-   * Semgive is called in particular RX/TX interrupt
-   */
-  sys_sem_t intPend_sem;
+  /* MDIO module control */
+  tiMDIOControl mdio;
 
   u32_t phy_addr;
   uint32_t waitTicksForPHYAneg;
