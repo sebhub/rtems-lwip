@@ -86,11 +86,10 @@
  *         FAILURE if module already initialized.
  */
 int8_t eth_lwip_init(uint8_t *mac_addr);
-void eth_lwip_get_dhcp_info(void);
+void eth_lwip_get_dhcp_info(struct netif *netif);
 int eth_lwip_get_netif_status_cmd(int argc, char *arg[]);
 void eth_lwip_set_hwaddr(struct netif *netif, uint8_t *mac_addr);
 void eth_lwip_get_hwaddr_str(struct netif *netif, uint8_t *macStr);
-struct netif *eth_lwip_get_netif(uint32_t instance_number);
 
 
 

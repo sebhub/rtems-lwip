@@ -42,7 +42,6 @@
 #include <rtems/rtems/sem.h>
 #include <rtems/rtems/intr.h>
 #include <bsp/irq-generic.h>
-#include "arch/eth_lwip_default.h"
 
 /* Typedefs for the various port-specific types. */
 #if defined(NO_SYS) && NO_SYS

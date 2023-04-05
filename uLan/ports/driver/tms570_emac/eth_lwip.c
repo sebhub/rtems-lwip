@@ -37,29 +37,21 @@
 #include "lwip/dhcp.h"
 #include "lwip/netifapi.h"
 #include "netif/etharp.h" /* includes - lwip/ip.h, lwip/netif.h, lwip/ip_addr.h, lwip/pbuf.h */
-#include "eth_lwip_default.h"
 #include "eth_lwip.h"
 #include "tms570_netif.h"
+#include "lwip/prot/ethernet.h"
 #include <stdio.h>
 #include <inttypes.h>
-
-/* The lwIP network interface structure for the Ethernet EMAC. */
-#ifndef MAX_EMAC_INSTANCE
-#define MAX_EMAC_INSTANCE           1
-#endif /*MAX_EMAC_INSTANCE*/
 
 #define SUCCESS ERR_OK
 #define FAILURE ERR_IF
 
-static struct netif eth_lwip_netifs[MAX_EMAC_INSTANCE];
 static void eth_lwip_conv_IP_decimal_Str(ip_addr_t ip, uint8_t *ipStr);
 
 
 void
-eth_lwip_get_dhcp_info(void)
+eth_lwip_get_dhcp_info(struct netif *netif)
 {
-  struct netif *netif = eth_lwip_get_netif(0);
-
   if (dhcp_supplied_address(netif)) {
     uint8_t ipString[16]; // FIXME change the functions to use char
     eth_lwip_conv_IP_decimal_Str(netif->ip_addr, ipString);
@@ -74,55 +66,27 @@ eth_lwip_get_dhcp_info(void)
 }
 
 int start_networking(
-  struct netif  *net_interface,
+  struct netif  *netif,
   ip_addr_t     *ipaddr,
   ip_addr_t     *netmask,
   ip_addr_t     *gateway,
   unsigned char *mac_addr
 )
 {
-  unsigned int instance_number = 0;
-  int8_t retVal = SUCCESS;
-
-
-  ip4_addr_t ip_addr;
-  ip4_addr_t net_mask;
-  ip4_addr_t gw_addr;
-  struct netif *netif = &eth_lwip_netifs[instance_number];
-  struct netif *netif_tmp;
-  u8_t default_mac[MAC_ADDR_LEN] = ETH_MAC_ADDR;
-
-  if (mac_addr == NULL)
-    mac_addr = default_mac;             /* use default MAC */
-
-  eth_lwip_set_hwaddr(netif, mac_addr);
   tcpip_init(NULL, NULL);
 
-#if STATIC_IP_ADDRESS
-  ip_addr.addr = htonl(ETH_IP_ADDR);
-  net_mask.addr = htonl(ETH_NETMASK);
-  gw_addr.addr = htonl(ETH_GW);
-#else
-  ip_addr.addr = 0;
-  net_mask.addr = 0;
-  gw_addr.addr = 0;
-#endif
+  eth_lwip_set_hwaddr(netif, mac_addr);
+  netif = netif_add(netif, (const ip4_addr_t *) ipaddr,
+    (const ip4_addr_t *) netmask, (const ip4_addr_t *) gateway,
+     NULL, tms570_eth_init_netif, tcpip_input);
 
-  netif_tmp = netif_add(netif, &ip_addr, &net_mask, &gw_addr,
-                        NULL, tms570_eth_init_netif, tcpip_input);
-
-  if (netif_tmp == NULL)
+  if (netif == NULL) {
     return NETIF_ADD_ERR;
+  }
 
   netif_set_default(netif);
-#if LWIP_NETIF_API
-  netifapi_netif_set_up(netif);
-#if !STATIC_IP_ADDRESS
-  netifapi_dhcp_start(netif);
-#endif
-#endif
-
-  return retVal;
+  netif_set_up(netif);
+  return 0;
 }
 
 int
@@ -130,14 +94,6 @@ eth_lwip_get_netif_status_cmd(int argc, char *arg[])
 {
   stats_display();
   return 0;
-}
-
-struct netif *
-eth_lwip_get_netif(uint32_t instance_number)
-{
-  if (instance_number >= MAX_EMAC_INSTANCE)
-    return NULL;
-  return &eth_lwip_netifs[instance_number];
 }
 
 static void
@@ -166,10 +122,10 @@ eth_lwip_set_hwaddr(struct netif *netif, uint8_t *mac_addr)
   int i;
 
   /* set MAC hardware address */
-  for (i = 0; i < MAC_ADDR_LEN; i++) {
+  for (i = 0; i < ETH_HWADDR_LEN; i++) {
     netif->hwaddr[i] = mac_addr[i];
   }
-  netif->hwaddr_len = MAC_ADDR_LEN;
+  netif->hwaddr_len = ETH_HWADDR_LEN;
 
 #ifdef DEBUG
   uint8_t macStr[18];
