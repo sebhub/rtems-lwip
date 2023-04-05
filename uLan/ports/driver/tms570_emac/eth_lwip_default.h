@@ -2,7 +2,7 @@
 #define __ETH_LWIP_DEFAULT_H
 
 /* #define DEBUG 1 */
-/* #define STATIC_IP_ADDRESS 1 */
+#define STATIC_IP_ADDRESS 1
 #if 0
 void tms570_eth_memp_avaible(int type);
 
@@ -27,7 +27,7 @@ void tms570_eth_memp_avaible(int type);
  * When static IP is configured in lwipopts.h, this IP address is used for interface.
  */
 #ifndef ETH_IP_ADDR
-#define ETH_IP_ADDR               0xC0A8F701 /* 192.168.247.1  */
+#define ETH_IP_ADDR               0x0a1b0a02 /* 192.168.247.1  */
 #endif
 
 /**
