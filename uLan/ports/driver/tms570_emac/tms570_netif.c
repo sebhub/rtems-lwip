@@ -695,6 +695,7 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
 
     // FIXME why works with pk()?
     //pk("TB %08x %08x %u %u\n", pbuf, q->payload, q->len, ntohl(*(uint32_t*)((uint8_t*)q->payload + 0x26)));
+    rtems_cache_flush_multiple_data_lines(q->payload, q->len);
     curr_bd->bufptr = tms570_eth_swap_bufptr(q->payload);
     curr_bd->bufoff_len = tms570_eth_swap(q->len & 0xFFFF);
 
