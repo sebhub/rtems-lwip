@@ -26,6 +26,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <rtems/ftpd.h>
 #include <rtems/telnetd.h>
 #include <lwip/dhcp.h>
 #include <arch/sys_arch.h>
@@ -35,6 +36,32 @@
 #include <netstart.h>
 
 const char rtems_test_name[] = "TELNETD 1";
+
+struct rtems_ftpd_configuration rtems_ftpd_configuration = {
+	/* FTPD task priority */
+	.priority = 100,
+
+	/* Maximum buffersize for hooks */
+	.max_hook_filesize = 0,
+
+	/* Well-known port */
+	.port = 21,
+
+	/* List of hooks */
+	.hooks = NULL,
+
+	/* Root for FTPD or NULL for "/" */
+	.root = NULL,
+
+	/* Max. connections depending on processor count */
+	.tasks_count = 4,
+
+	/* Idle timeout in seconds  or 0 for no (infinite) timeout */
+	.idle = 5 * 60,
+
+	/* Access: 0 - r/w, 1 - read-only, 2 - write-only, 3 - browse-only */
+	.access = 0
+};
 
 struct netif net_interface;
 
@@ -115,6 +142,9 @@ static rtems_task Init( rtems_task_argument argument )
 
   dhcp_start( &net_interface );
 
+  ret = rtems_initialize_ftpd();
+  rtems_test_assert( ret == 0 );
+
   sc = rtems_telnetd_start( &rtems_telnetd_config );
   rtems_test_assert( sc == RTEMS_SUCCESSFUL );
 
@@ -139,6 +169,8 @@ static rtems_task Init( rtems_task_argument argument )
 
 #define CONFIGURE_MICROSECONDS_PER_TICK 10000
 
+#define CONFIGURE_APPLICATION_NEEDS_ZERO_DRIVER
+#define CONFIGURE_APPLICATION_NEEDS_STUB_DRIVER
 #define CONFIGURE_APPLICATION_NEEDS_CLOCK_DRIVER
 #define CONFIGURE_APPLICATION_NEEDS_CONSOLE_DRIVER
 #define CONFIGURE_APPLICATION_NEEDS_LIBBLOCK
@@ -148,12 +180,6 @@ static rtems_task Init( rtems_task_argument argument )
 #define CONFIGURE_SHELL_COMMANDS_INIT
 #define CONFIGURE_SHELL_COMMANDS_ALL
 #define CONFIGURE_SHELL_USER_COMMANDS &shell_NETINFO_Command
-
-#define CONFIGURE_MAXIMUM_TASKS 12
-
-#define CONFIGURE_MAXIMUM_POSIX_KEYS 1
-#define CONFIGURE_MAXIMUM_SEMAPHORES 20
-#define CONFIGURE_MAXIMUM_MESSAGE_QUEUES 10
 
 #define CONFIGURE_INITIAL_EXTENSIONS RTEMS_TEST_INITIAL_EXTENSION
 
