@@ -704,7 +704,7 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
       goto error_out_of_descriptors;
 
     // FIXME why works with pk()?
-    //pk("TB %08x %08x %u %u\n", pbuf, q->payload, q->len, ntohl(*(uint32_t*)((uint8_t*)q->payload + 0x26)));
+    pk("TB %08x %08x %u %u\n", pbuf, q->payload, q->len, ntohl(*(uint32_t*)((uint8_t*)q->payload + 0x26)));
     rtems_cache_flush_multiple_data_lines(q->payload, q->len);
     curr_bd->bufptr = tms570_eth_swap_bufptr(q->payload);
     curr_bd->bufoff_len = tms570_eth_swap(q->len & 0xFFFF);
@@ -821,19 +821,32 @@ tms570_eth_process_irq_rx(void *arg)
   rtems_interrupt_disable(level);
 
   volatile struct emac_rx_bd *curr_bd = nf_state->rxch.active_head;
-  while ((tms570_eth_swap(curr_bd->flags_pktlen) & (EMAC_DSC_FLAG_SOP | EMAC_DSC_FLAG_OWNER)) == EMAC_DSC_FLAG_SOP) {
-    LINK_STATS_INC(link.recv);
 
-    struct pbuf *p = pbuf_alloc(PBUF_RAW, PBUF_POOL_BUFSIZE, PBUF_POOL);
+  while (true) {
+    u32_t flags_pktlen = tms570_eth_swap(curr_bd->flags_pktlen);
+
+    if ((flags_pktlen & EMAC_DSC_FLAG_OWNER) != 0) {
+      break;
+    }
+
+    LINK_STATS_INC(link.recv);
+    u32_t full_packet = EMAC_DSC_FLAG_SOP | EMAC_DSC_FLAG_EOP;
     bool recycle;
 
-    if (p != NULL) {
-      u32_t len = tms570_eth_swap(curr_bd->bufoff_len) & 0xFFFF;
-      struct pbuf *q = curr_bd->pbuf;
-      q->len = len;
-      q->tot_len = len;
-      pk("R %08x %08x %u %u\n", q, q->payload, q->len, ntohl(*(uint32_t*)((uint8_t*)q->payload + 0x26)));
-      if (netif->input(q, netif) == ERR_OK) {
+    if ((flags_pktlen & full_packet) == full_packet) {
+      struct pbuf *p = pbuf_alloc(PBUF_RAW, PBUF_POOL_BUFSIZE, PBUF_POOL);
+
+      if (p != NULL) {
+        u32_t len = tms570_eth_swap(curr_bd->bufoff_len) & 0xFFFF;
+        struct pbuf *q = curr_bd->pbuf;
+        q->len = len;
+        q->tot_len = len;
+        pk("R %08x %08x %u %u\n", q, q->payload, q->len, ntohl(*(uint32_t*)((uint8_t*)q->payload + 0x26)));
+
+        if ((*netif->input)(q, netif) != ERR_OK) {
+          pbuf_free(q);
+        }
+
         rtems_cache_invalidate_multiple_data_lines(p->payload, p->len);
         curr_bd->bufptr = tms570_eth_swap_bufptr(p->payload);
         curr_bd->bufoff_len = tms570_eth_swap(p->len);
@@ -841,18 +854,19 @@ tms570_eth_process_irq_rx(void *arg)
         curr_bd->pbuf = p;
         recycle = false;
       } else {
+        LINK_STATS_INC(link.memerr);
         recycle = true;
       }
     } else {
+      LINK_STATS_INC(link.err);
       recycle = true;
     }
 
     if (recycle) {
-      LINK_STATS_INC(link.memerr);
       LINK_STATS_INC(link.drop);
-      p = curr_bd->pbuf;
-      curr_bd->bufptr = tms570_eth_swap_bufptr(p->payload);
-      curr_bd->bufoff_len = tms570_eth_swap(p->len);
+      struct pbuf *q = curr_bd->pbuf;
+      curr_bd->bufptr = tms570_eth_swap_bufptr(q->payload);
+      curr_bd->bufoff_len = tms570_eth_swap(q->len);
       curr_bd->flags_pktlen = tms570_eth_swap(EMAC_DSC_FLAG_OWNER);
     }
 
@@ -889,11 +903,11 @@ tms570_eth_process_irq_tx(void *arg)
   nf_state = netif->state;
   txch = &(nf_state->txch);
 
-  start_of_packet_bd = txch->active_head;
-  curr_bd = start_of_packet_bd;
-
   rtems_interrupt_level level;
   rtems_interrupt_disable(level);
+
+  start_of_packet_bd = txch->active_head;
+  curr_bd = start_of_packet_bd;
 
   /* Traverse the list of BDs used for transmission --
    * stop on the first unused
