@@ -750,6 +750,7 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
      */
     curr_bd = txch->active_tail;
     curr_bd->next = tms570_eth_swap_txp(packet_head);
+  sys_arch_data_sync_barier();
 
     /* We were too slow and the EMAC already read the
      * 'pNext = NULL' of the former txch->active_tail. In this
@@ -819,6 +820,8 @@ tms570_eth_process_irq_rx(void *arg)
     return;
   }
 
+  rtems_interrupt_level level;
+  rtems_interrupt_disable(level);
   /* For each valid frame */
   while ((tms570_eth_swap(curr_bd->flags_pktlen) & (EMAC_DSC_FLAG_SOP | EMAC_DSC_FLAG_OWNER)) == EMAC_DSC_FLAG_SOP) {
     unsigned int total_rx_len;
@@ -886,7 +889,7 @@ tms570_eth_process_irq_rx(void *arg)
 
 
     LINK_STATS_INC(link.recv);
-    //pk("R %08x %08x %u %u\n", pbuf, pbuf->payload, pbuf->len, ntohl(*(uint32_t*)((uint8_t*)pbuf->payload + 0x26)));
+    pk("R %08x %08x %u %u\n", pbuf, pbuf->payload, pbuf->len, ntohl(*(uint32_t*)((uint8_t*)pbuf->payload + 0x26)));
 
     /* Process the packet */
     /* ethernet_input((struct pbuf *)pbuf, netif) */
@@ -914,6 +917,7 @@ tms570_eth_process_irq_rx(void *arg)
       return;
     }
   }
+  rtems_interrupt_enable(level);
 }
 
 static void
@@ -932,10 +936,13 @@ tms570_eth_process_irq_tx(void *arg)
   start_of_packet_bd = txch->active_head;
   curr_bd = start_of_packet_bd;
 
+  rtems_interrupt_level level;
+  rtems_interrupt_disable(level);
+
   /* Traverse the list of BDs used for transmission --
    * stop on the first unused
    */
-  //pk("TIRQ %08x %08x\n", curr_bd, tms570_eth_swap(curr_bd->flags_pktlen));
+  pk("TIRQ %08x %08x\n", curr_bd, tms570_eth_swap(curr_bd->flags_pktlen));
   while ((curr_bd != NULL) && (tms570_eth_swap(curr_bd->flags_pktlen) & EMAC_DSC_FLAG_SOP)) {
     /* Make sure the transmission is over */
     if (tms570_eth_swap(curr_bd->flags_pktlen) & EMAC_DSC_FLAG_OWNER) {
@@ -998,6 +1005,7 @@ tms570_eth_process_irq_tx(void *arg)
     start_of_packet_bd = txch->active_head;
     curr_bd = start_of_packet_bd;
   }
+  rtems_interrupt_enable(level);
 }
 
 static void
@@ -1123,7 +1131,7 @@ tms570_eth_rx_pbuf_refill(struct tms570_netif_state *nf_state, int single_fl)
       }
   #endif /*__GNUC__*/
       if (alloc_rq_bytes <= PBUF_POOL_BUFSIZE) {
-        tms570_eth_debug_printf("not enough memory\n");
+        printk("not enough memory\n");
         break;
       }
       alloc_rq_bytes = rxch->freed_pbuf_len > alloc_rq_bytes ?
