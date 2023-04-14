@@ -55,6 +55,8 @@ struct emac_rx_bd {
 
   /* helper to know which pbuf this rx bd corresponds to */
   struct pbuf *pbuf;
+  volatile struct emac_rx_bd *ring_next;
+  volatile struct emac_rx_bd *ring_prev;
 };
 
 /**
@@ -62,13 +64,7 @@ struct emac_rx_bd {
  * receive channel
  */
 struct rxch{
-  uint32_t active;
-  uint32_t inactive;
   volatile struct emac_rx_bd *active_head;
-  volatile struct emac_rx_bd *active_tail;
-  volatile struct emac_rx_bd *inactive_head;
-  volatile struct emac_rx_bd *inactive_tail;
-  s32_t freed_pbuf_len;
 };
 
 /**

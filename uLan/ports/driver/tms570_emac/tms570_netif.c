@@ -47,6 +47,7 @@
 /* end - lwIP headers */
 
 //--------moje
+#include <assert.h>
 #include <strings.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -127,10 +128,6 @@ static bool initialized = false;
 static
 #endif /*__TI_COMPILER_VERSION__*/
 SYS_IRQ_HANDLER_FNC(tms570_eth_irq);
-static void tms570_eth_rx_pbuf_refill(struct tms570_netif_state *nf_state, int);
-#if LWIP_NETIF_API
-static void tms570_eth_rx_pbuf_refill_single(struct netif *);
-#endif
 static void tms570_eth_hw_set_RX_HDP(struct tms570_netif_state *nf_state, volatile struct emac_rx_bd *new_head);
 static void tms570_eth_hw_set_TX_HDP(struct tms570_netif_state *nf_state, volatile struct emac_tx_bd *new_head);
 static void tms570_eth_hw_set_hwaddr(struct tms570_netif_state *nf_state, uint8_t *mac_addr);
@@ -280,7 +277,6 @@ tms570_eth_init_netif(struct netif *netif)
     return retVal;
   }
   tms570_eth_init_buffer_descriptors(nf_state);
-  tms570_eth_rx_pbuf_refill(nf_state, 0);
   tms570_eth_hw_set_hwaddr(nf_state, netif->hwaddr);
   tms570_eth_init_interrupt(nf_state);
   if ((retVal = tms570_eth_init_hw_post_init(nf_state)) != ERR_OK) {
@@ -518,6 +514,8 @@ tms570_eth_init_buffer_descriptors(struct tms570_netif_state *nf_state)
   uint32_t num_bd;
   volatile struct emac_tx_bd *curr_txbd;
   volatile struct emac_rx_bd *curr_rxbd;
+  volatile struct emac_rx_bd *prev_rxbd;
+  volatile struct emac_rx_bd *head_rxbd;
 
   struct rxch *rxch;
   struct txch *txch;
@@ -575,27 +573,39 @@ tms570_eth_init_buffer_descriptors(struct tms570_netif_state *nf_state)
 
   /* Initialize the descriptors for the RX channel */
   curr_rxbd = (volatile struct emac_rx_bd *)(curr_txbd + 1);
-  rxch->inactive_head = curr_rxbd;
-  rxch->active_tail = NULL;
-  rxch->active_head = NULL;
-  rxch->freed_pbuf_len = MAX_RX_PBUF_ALLOC*PBUF_LEN_MAX;
+  head_rxbd = curr_rxbd;
+  rxch->active_head = head_rxbd;
 
   num_bd = ((SIZE_EMAC_CTRL_RAM >> 1) / sizeof(struct emac_rx_bd))-1;
-  rxch->inactive = num_bd;
-  rxch->active = 0;
+  num_bd = LWIP_MIN(PBUF_POOL_SIZE / 2, num_bd);
 
   while (num_bd > 0) {
+    struct pbuf *p = pbuf_alloc(PBUF_RAW, PBUF_POOL_BUFSIZE, PBUF_POOL);
+    assert(p != NULL);
+    assert(p->next == NULL);
+
+    rtems_cache_invalidate_multiple_data_lines(p->payload, p->len);
+    curr_rxbd->bufptr = tms570_eth_swap_bufptr(p->payload);
+    curr_rxbd->bufoff_len = tms570_eth_swap(p->len);
+    curr_rxbd->flags_pktlen = tms570_eth_swap(EMAC_DSC_FLAG_OWNER);
+    curr_rxbd->pbuf = p;
+
     volatile struct emac_rx_bd *next_rxbd = curr_rxbd + 1;
     curr_rxbd->next = tms570_eth_swap_rxp(next_rxbd);
-    curr_rxbd->flags_pktlen = tms570_eth_swap(EMAC_DSC_FLAG_OWNER);
-    curr_rxbd->pbuf = NULL;
+    curr_rxbd->ring_next = next_rxbd;
+    curr_rxbd->ring_prev = prev_rxbd;
+    prev_rxbd = curr_rxbd;
     curr_rxbd = next_rxbd;
+
     --num_bd;
   }
 
-  --curr_rxbd;
-  curr_rxbd->next = NULL;
-  rxch->inactive_tail = curr_rxbd;
+  prev_rxbd->next = NULL;
+  prev_rxbd->ring_next = head_rxbd;
+  head_rxbd->ring_prev = prev_rxbd;
+
+  sys_arch_data_sync_barier();
+  tms570_eth_hw_set_RX_HDP(nf_state, head_rxbd);
 
 #if TMS570_NETIF_DEBUG
   tms570_eth_debug_show_rx(nf_state);
@@ -804,119 +814,65 @@ error_out_of_descriptors:
 static void
 tms570_eth_process_irq_rx(void *arg)
 {
-  struct tms570_netif_state *nf_state;
-  struct rxch *rxch;
   struct netif *netif = (struct netif *)arg;
-  volatile struct emac_rx_bd *curr_bd;
-  struct pbuf *pbuf;
-  struct pbuf *q;
-
-  nf_state = netif->state;
-  rxch = &(nf_state->rxch);
-  /* Get the bd which contains the earliest filled data */
-  curr_bd = rxch->active_head;
-  if (curr_bd == NULL) {
-    tms570_eth_rx_pbuf_refill(nf_state, 0);
-    return;
-  }
+  struct tms570_netif_state *nf_state = netif->state;
 
   rtems_interrupt_level level;
   rtems_interrupt_disable(level);
-  /* For each valid frame */
+
+  volatile struct emac_rx_bd *curr_bd = nf_state->rxch.active_head;
   while ((tms570_eth_swap(curr_bd->flags_pktlen) & (EMAC_DSC_FLAG_SOP | EMAC_DSC_FLAG_OWNER)) == EMAC_DSC_FLAG_SOP) {
-    unsigned int total_rx_len;
-    unsigned int processed_rx_len = 0;
-    int corrupt_fl = 0;
-
-    sys_arch_data_sync_barier();
-
-    pbuf = curr_bd->pbuf;
-    total_rx_len = tms570_eth_swap(curr_bd->flags_pktlen) & 0xFFFF;
-    tms570_eth_debug_printf("recieve packet. L = %d ", total_rx_len);
-    /* The received frame might be fragmented into muliple
-     * pieces -- each one referenced by a separate BD.
-     * To further process the data, we need to 'make' a
-     * proper PBUF out of it -- that means linking each
-     * buffer together, copy the length information form
-     * the DB to PBUF, calculate the 'tot_len' etc.
-     */
-    for (;; ) {
-      q = curr_bd->pbuf;
-      /* Since this pbuf will be freed, we need to
-       * keep track of its size to be able to
-       * allocate it back again
-       */
-      rxch->freed_pbuf_len += q->len;
-      tms570_eth_debug_printf("bd - %d ", tms570_eth_debug_get_BD_num(curr_bd, nf_state));
-      tms570_eth_debug_printf("pbuf len - %d ", q->len);
-      tms570_eth_debug_printf("A - 0x%08x ", q);
-      /* This is the size of the "received data" not the PBUF */
-      q->tot_len = total_rx_len - processed_rx_len;
-      q->len = tms570_eth_swap(curr_bd->bufoff_len) & 0xFFFF;
-
-      if (tms570_eth_swap(curr_bd->flags_pktlen) & EMAC_DSC_FLAG_EOP)
-        break;
-      /*
-       * If we are executing here, it means this
-       * packet is being split over multiple BDs
-       */
-      tms570_eth_debug_printf("MB");
-      /* chain the pbufs since they belong
-       * to the same packet
-       */
-      if (curr_bd->next == NULL) {
-        corrupt_fl = 1;
-        break;
-      }
-      curr_bd = tms570_eth_swap_rxp(curr_bd->next);
-      q->next = curr_bd->pbuf;
-
-      processed_rx_len += q->len;
-    }
-    tms570_eth_debug_printf("\n");
-    /* Close the chain */
-    q->next = NULL;
-    if (rxch->inactive_tail == NULL) {
-      rxch->inactive_head = rxch->active_head;
-    } else {
-      rxch->inactive_tail->next = tms570_eth_swap_rxp(rxch->active_head);
-    }
-    rxch->inactive_tail = curr_bd;
-    rxch->active_head = tms570_eth_swap_rxp(curr_bd->next);
-    if (curr_bd->next == NULL)
-      rxch->active_tail = NULL;
-    rxch->inactive_tail->next = NULL;
-
-
     LINK_STATS_INC(link.recv);
-    pk("R %08x %08x %u %u\n", pbuf, pbuf->payload, pbuf->len, ntohl(*(uint32_t*)((uint8_t*)pbuf->payload + 0x26)));
 
-    /* Process the packet */
-    /* ethernet_input((struct pbuf *)pbuf, netif) */
-    if (!corrupt_fl)
-      if (netif->input(pbuf, netif) != ERR_OK)
-        corrupt_fl = 1;
-    if (corrupt_fl) {
+    struct pbuf *p = pbuf_alloc(PBUF_RAW, PBUF_POOL_BUFSIZE, PBUF_POOL);
+    bool recycle;
+
+    if (p != NULL) {
+      u32_t len = tms570_eth_swap(curr_bd->bufoff_len) & 0xFFFF;
+      struct pbuf *q = curr_bd->pbuf;
+      q->len = len;
+      q->tot_len = len;
+      pk("R %08x %08x %u %u\n", q, q->payload, q->len, ntohl(*(uint32_t*)((uint8_t*)q->payload + 0x26)));
+      if (netif->input(q, netif) == ERR_OK) {
+        rtems_cache_invalidate_multiple_data_lines(p->payload, p->len);
+        curr_bd->bufptr = tms570_eth_swap_bufptr(p->payload);
+        curr_bd->bufoff_len = tms570_eth_swap(p->len);
+        curr_bd->flags_pktlen = tms570_eth_swap(EMAC_DSC_FLAG_OWNER);
+        curr_bd->pbuf = p;
+        recycle = false;
+      } else {
+        recycle = true;
+      }
+    } else {
+      recycle = true;
+    }
+
+    if (recycle) {
       LINK_STATS_INC(link.memerr);
       LINK_STATS_INC(link.drop);
-      pbuf_free(pbuf);
+      p = curr_bd->pbuf;
+      curr_bd->bufptr = tms570_eth_swap_bufptr(p->payload);
+      curr_bd->bufoff_len = tms570_eth_swap(p->len);
+      curr_bd->flags_pktlen = tms570_eth_swap(EMAC_DSC_FLAG_OWNER);
     }
+
+    curr_bd->next = NULL;
+    sys_arch_data_sync_barier();
 
     /* Acknowledge that this packet is processed */
     EMACRxCPWrite(nf_state->emac_base, 0, (unsigned int)curr_bd);
 
-    /* The earlier PBUF chain is freed from the upper layer.
-     * So, we need to allocate a new pbuf chain and update
-     * the descriptors with the PBUF info.
-     * Care should be taken even if the allocation fails.
-     */
-    tms570_eth_rx_pbuf_refill(nf_state, 0);
-    //tms570_eth_debug_print_rxch();
-    curr_bd = rxch->active_head;
-    if (curr_bd == NULL) {
-      return;
+    volatile struct emac_rx_bd *prev_bd = curr_bd->ring_prev;
+    prev_bd->next = tms570_eth_swap_rxp(curr_bd);
+
+    if ((tms570_eth_swap(prev_bd->flags_pktlen) & EMAC_DSC_FLAG_EOQ) != 0) {
+      tms570_eth_hw_set_RX_HDP(nf_state, curr_bd);
     }
+
+    curr_bd = curr_bd->ring_next;
   }
+
+  nf_state->rxch.active_head = curr_bd;
   rtems_interrupt_enable(level);
 }
 
@@ -1085,102 +1041,6 @@ tms570_eth_hw_set_TX_HDP(struct tms570_netif_state *nf_state, volatile struct em
     CHANNEL);
 }
 
-#if LWIP_NETIF_API
-static void
-tms570_eth_rx_pbuf_refill_single(struct netif *netif)
-{
-  tms570_eth_rx_pbuf_refill(netif->state, 1);
-}
-#endif
-
-static void
-tms570_eth_rx_pbuf_refill(struct tms570_netif_state *nf_state, int single_fl)
-{
-  struct rxch *rxch;
-  volatile struct emac_rx_bd *curr_bd;
-  volatile struct emac_rx_bd *curr_head;
-  struct pbuf *new_pbuf;
-  struct pbuf *q;
-  uint32_t alloc_rq_bytes;
-
-  rxch = &(nf_state->rxch);
-  if (single_fl) {
-    alloc_rq_bytes = PBUF_POOL_BUFSIZE;
-  } else {
-    alloc_rq_bytes = rxch->freed_pbuf_len;
-  }
-
-  for (; (rxch->freed_pbuf_len > 0) && (rxch->inactive_head != NULL); ) {
-    //stats_display();
-
-    curr_bd = rxch->inactive_head;
-    curr_head = rxch->inactive_head;
-    tms570_eth_debug_printf("attempt to allocate %d bytes from pbuf pool (RX)\n", alloc_rq_bytes);
-    new_pbuf = pbuf_alloc(PBUF_RAW,
-                          alloc_rq_bytes,
-                          PBUF_POOL);
-    if (new_pbuf == NULL) {
-  #if defined(__GNUC__) && !defined(__TI_COMPILER_VERSION__)
-      alloc_rq_bytes = (1 << (30-__builtin_clz(alloc_rq_bytes)));
-  #else /*__GNUC__*/
-      {
-        int n = 0;
-        while ((1 << n) < alloc_rq_bytes)
-          n++;
-        alloc_rq_bytes = 1 << (n - 1);
-      }
-  #endif /*__GNUC__*/
-      if (alloc_rq_bytes <= PBUF_POOL_BUFSIZE) {
-        printk("not enough memory\n");
-        break;
-      }
-      alloc_rq_bytes = rxch->freed_pbuf_len > alloc_rq_bytes ?
-                       alloc_rq_bytes : rxch->freed_pbuf_len;
-      continue;
-    } else {
-      q = new_pbuf;
-      for (;; ) {
-        rtems_cache_invalidate_multiple_data_lines(q->payload, q->len);
-        curr_bd->bufptr = tms570_eth_swap_bufptr(q->payload);
-        curr_bd->bufoff_len = tms570_eth_swap(q->len);
-        curr_bd->flags_pktlen = tms570_eth_swap(EMAC_DSC_FLAG_OWNER);
-        curr_bd->pbuf = q;
-        rxch->freed_pbuf_len -= q->len;
-        q = q->next;
-        if (q == NULL)
-          break;
-        if (curr_bd->next == NULL) {
-          rxch->inactive_tail = NULL;
-          break;
-        }
-        curr_bd = tms570_eth_swap_rxp(curr_bd->next);
-      }
-
-      if (q != NULL)
-        pbuf_free((struct pbuf *)q);
-      /* Add the newly allocated BDs to the
-       * end of the list
-       */
-      rxch->inactive_head = tms570_eth_swap_rxp(curr_bd->next);
-
-      curr_bd->next = NULL;
-      sys_arch_data_sync_barier();
-
-      if (rxch->active_head == NULL) {
-        rxch->active_head = curr_head;
-        rxch->active_tail = curr_bd;
-        tms570_eth_hw_set_RX_HDP(nf_state, rxch->active_head);
-      } else {
-        rxch->active_tail->next = tms570_eth_swap_rxp(curr_head);
-        sys_arch_data_sync_barier();
-        if ((tms570_eth_swap(rxch->active_tail->flags_pktlen) & EMAC_DSC_FLAG_EOQ) != 0)
-          tms570_eth_hw_set_RX_HDP(nf_state, rxch->active_head);
-        rxch->active_tail = curr_bd;
-      }
-    }
-  }
-}
-
 #if !defined(__TI_COMPILER_VERSION__)
 static
 #endif /*__TI_COMPILER_VERSION__*/
@@ -1192,18 +1052,6 @@ SYS_IRQ_HANDLER_FNC(tms570_eth_irq){
   if (nf_state != NULL)
     sys_sem_signal_from_ISR(&nf_state->intPend_sem);
 }
-
-#if LWIP_NETIF_API
-void
-tms570_eth_memp_avaible(int type)
-{
-  if (!initialized)
-    return;
-  if (type != MEMP_PBUF_POOL)
-    return;
-  netifapi_netif_common(eth_lwip_get_netif(0), tms570_eth_rx_pbuf_refill_single, NULL);
-}
-#endif
 
 #if TMS570_NETIF_DEBUG
 
