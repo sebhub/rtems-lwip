@@ -55,7 +55,7 @@
 #define MEMP_NUM_TCP_PCB_LISTEN 8
 #define MEMP_NUM_TCP_SEG        256
 
-#define PBUF_POOL_SIZE          16
+#define PBUF_POOL_SIZE          32
 #define PBUF_POOL_BUFSIZE       1600
 #define PBUF_LINK_HLEN          16
 
