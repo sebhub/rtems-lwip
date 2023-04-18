@@ -704,7 +704,7 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
       goto error_out_of_descriptors;
 
     // FIXME why works with pk()?
-    pk("TB %08x %08x %u %u\n", pbuf, q->payload, q->len, ntohl(*(uint32_t*)((uint8_t*)q->payload + 0x26)));
+    //pk("TB %08x %08x %u %u\n", pbuf, q->payload, q->len, ntohl(*(uint32_t*)((uint8_t*)q->payload + 0x26)));
     rtems_cache_flush_multiple_data_lines(q->payload, q->len);
     curr_bd->bufptr = tms570_eth_swap_bufptr(q->payload);
     curr_bd->bufoff_len = tms570_eth_swap(q->len & 0xFFFF);
@@ -727,7 +727,7 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
      * random memory. Reuse IP and possibly TCP/UDP header
      * of given frame as padding
      */
-    pk("TP %08x %u\n", pbuf, padlen);
+    //pk("TP %08x %u\n", pbuf, padlen);
     curr_bd->bufptr = packet_head->bufptr;
     curr_bd->bufoff_len = tms570_eth_swap(padlen);
     curr_bd->pbuf = pbuf;
@@ -749,7 +749,7 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
 
   if (txch->active_tail == NULL) {
     txch->active_head = packet_head;
-	    pk("TN %u %u %08x\n", txch->active, txch->inactive, packet_head->pbuf->payload);
+	    //pk("TN %u %u %08x\n", txch->active, txch->inactive, packet_head->pbuf->payload);
     tms570_eth_hw_set_TX_HDP(nf_state, packet_head);
   } else {
     uint32_t flags_pktlen;
@@ -769,7 +769,7 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
      */
     flags_pktlen = tms570_eth_swap(curr_bd->flags_pktlen);
     if ((flags_pktlen & (EMAC_DSC_FLAG_EOQ | EMAC_DSC_FLAG_OWNER)) == EMAC_DSC_FLAG_EOQ) {
-	    pk("TRQ %u %u %08x %08x\n", txch->active, txch->inactive, flags_pktlen, packet_head->pbuf->payload);
+	    //pk("TRQ %u %u %08x %08x\n", txch->active, txch->inactive, flags_pktlen, packet_head->pbuf->payload);
       curr_bd->flags_pktlen = tms570_eth_swap(flags_pktlen & ~EMAC_DSC_FLAG_EOQ);
       tms570_eth_hw_set_TX_HDP(nf_state, packet_head);
     } else {
@@ -841,7 +841,7 @@ tms570_eth_process_irq_rx(void *arg)
         struct pbuf *q = curr_bd->pbuf;
         q->len = len;
         q->tot_len = len;
-        pk("R %08x %08x %u %u\n", q, q->payload, q->len, ntohl(*(uint32_t*)((uint8_t*)q->payload + 0x26)));
+        //pk("R %08x %08x %u %u\n", q, q->payload, q->len, ntohl(*(uint32_t*)((uint8_t*)q->payload + 0x26)));
 
         if ((*netif->input)(q, netif) != ERR_OK) {
           pbuf_free(q);
@@ -912,7 +912,7 @@ tms570_eth_process_irq_tx(void *arg)
   /* Traverse the list of BDs used for transmission --
    * stop on the first unused
    */
-  pk("TIRQ %08x %08x\n", curr_bd, tms570_eth_swap(curr_bd->flags_pktlen));
+  //pk("TIRQ %08x %08x\n", curr_bd, tms570_eth_swap(curr_bd->flags_pktlen));
   while ((curr_bd != NULL) && (tms570_eth_swap(curr_bd->flags_pktlen) & EMAC_DSC_FLAG_SOP)) {
     /* Make sure the transmission is over */
     if (tms570_eth_swap(curr_bd->flags_pktlen) & EMAC_DSC_FLAG_OWNER) {
