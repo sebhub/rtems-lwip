@@ -738,6 +738,7 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
   /* Indicate the end of the packet */
   packet_tail->next = NULL;
   packet_tail->flags_pktlen |= tms570_eth_swap(EMAC_DSC_FLAG_EOP);
+  packet_tail->flags_pktlen;
 
   txch->active += desc_count;
   txch->inactive -= desc_count;
