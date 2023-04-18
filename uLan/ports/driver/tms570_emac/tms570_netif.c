@@ -914,19 +914,28 @@ tms570_eth_process_irq_tx(void *arg)
    * stop on the first unused
    */
   //pk("TIRQ %08x %08x\n", curr_bd, tms570_eth_swap(curr_bd->flags_pktlen));
-  while ((curr_bd != NULL) && (tms570_eth_swap(curr_bd->flags_pktlen) & EMAC_DSC_FLAG_SOP)) {
+  while (curr_bd != NULL) {
     /* Make sure the transmission is over */
-    if (tms570_eth_swap(curr_bd->flags_pktlen) & EMAC_DSC_FLAG_OWNER) {
-      tms570_eth_debug_printf("TXthread ownership not transfered!!!!\n");
+    u32_t flags_pktlen = tms570_eth_swap(curr_bd->flags_pktlen);
+    if ((flags_pktlen & EMAC_DSC_FLAG_OWNER) != 0) {
       break;
+    }
+
+    if ((flags_pktlen & EMAC_DSC_FLAG_SOP) == 0) {
+      tms570_eth_debug_printf("Expected SOP flag is not present\n");
     }
 
     /* Find the last chunk of the packet */
     uint32_t desc_count = 1;
-    while (!(tms570_eth_swap(curr_bd->flags_pktlen) & EMAC_DSC_FLAG_EOP)) {
+    while ((flags_pktlen & EMAC_DSC_FLAG_EOP) == 0) {
       ++desc_count;
       curr_bd = tms570_eth_swap_txp(curr_bd->next);
+      flags_pktlen = tms570_eth_swap(curr_bd->flags_pktlen);
   //pk("TEOP %08x %08x\n", curr_bd, tms570_eth_swap(curr_bd->flags_pktlen));
+    }
+
+    if ((flags_pktlen & EMAC_DSC_FLAG_EOQ) != 0 && txch->active_head != NULL) {
+      tms570_eth_hw_set_TX_HDP(nf_state, txch->active_head);
     }
 
     txch->inactive += desc_count;
