@@ -1056,7 +1056,6 @@ tms570_eth_hw_set_TX_HDP(struct tms570_netif_state *nf_state, volatile struct em
                                                  */
   while (nf_state->emac_base->TXHDP[CHANNEL] != 0) {
     tms570_eth_debug_printf("HW -TX- is slacking!!!\n");
-    sys_arch_delay(10);
   }
   tms570_eth_debug_printf("setting TX HDP");
   EMACTxHdrDescPtrWrite(
