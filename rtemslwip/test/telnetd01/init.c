@@ -28,6 +28,7 @@
 
 #include <rtems/ftpd.h>
 #include <rtems/telnetd.h>
+#include <rtems/recordserver.h>
 #include <lwip/dhcp.h>
 #include <arch/sys_arch.h>
 
@@ -148,6 +149,9 @@ static rtems_task Init( rtems_task_argument argument )
   sc = rtems_telnetd_start( &rtems_telnetd_config );
   rtems_test_assert( sc == RTEMS_SUCCESSFUL );
 
+  sc = rtems_record_start_server(100, 1234, 1);
+  rtems_test_assert( sc == RTEMS_SUCCESSFUL );
+
   sc = rtems_shell_init(
     "SHLL",                       /* task name */
     RTEMS_MINIMUM_STACK_SIZE * 4, /* task stack size */
@@ -189,6 +193,10 @@ static rtems_task Init( rtems_task_argument argument )
 
 #define CONFIGURE_UNLIMITED_OBJECTS
 #define CONFIGURE_UNIFIED_WORK_AREAS
+
+#define CONFIGURE_RECORD_EXTENSIONS_ENABLED
+#define CONFIGURE_RECORD_INTERRUPTS_ENABLED
+#define CONFIGURE_RECORD_PER_PROCESSOR_ITEMS 0x10000
 
 #include <rtems/shellconfig.h>
 
