@@ -67,17 +67,17 @@ struct rxch{
   volatile struct emac_rx_bd *active_head;
 };
 
+#define EMAC_TX_BD_COUNT 128
+
 /**
  * Helper struct to hold the data used to operate on a particular
  * transmit channel
  */
 struct txch {
-  uint32_t active;
-  uint32_t inactive;
-  volatile struct emac_tx_bd *active_head;
-  volatile struct emac_tx_bd *active_tail;
-  volatile struct emac_tx_bd *inactive_head;
-  volatile struct emac_tx_bd *inactive_tail;
+  size_t head;
+  size_t tail;
+  bool active;
+  volatile struct emac_tx_bd *bds;
 };
 
 /**

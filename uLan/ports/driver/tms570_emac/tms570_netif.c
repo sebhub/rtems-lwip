@@ -48,7 +48,7 @@
 
 //--------moje
 #include <assert.h>
-#include <strings.h>
+#include <string.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <bsp/irq.h>
@@ -512,7 +512,6 @@ static void
 tms570_eth_init_buffer_descriptors(struct tms570_netif_state *nf_state)
 {
   uint32_t num_bd;
-  volatile struct emac_tx_bd *curr_txbd;
   volatile struct emac_rx_bd *curr_rxbd;
   volatile struct emac_rx_bd *prev_rxbd;
   volatile struct emac_rx_bd *head_rxbd;
@@ -544,35 +543,14 @@ tms570_eth_init_buffer_descriptors(struct tms570_netif_state *nf_state)
    */
 
   /* Initialize all the TX buffer Descriptors */
-  curr_txbd = (volatile struct emac_tx_bd *)nf_state->emac_ctrl_ram;
-  txch->inactive_head = curr_txbd;
-  txch->active_head = NULL;
-  txch->active_tail = NULL;
-
-  /* Set the number of descriptors for the channel */
-  /* take half of CPPI ram for TX BDs */
-
-  num_bd = ((SIZE_EMAC_CTRL_RAM >> 1) / sizeof(struct emac_tx_bd))-1;
-#if TMS570_NETIF_DEBUG
-  tms570_eth_debug_printf("pocet bd %d\n", num_bd);
-#endif
-  txch->inactive = num_bd;
-  txch->active = 0;
-
-  while (num_bd > 0) {
-    volatile struct emac_tx_bd *next_txbd = curr_txbd + 1;
-    curr_txbd->next = tms570_eth_swap_txp(next_txbd);
-    curr_txbd->flags_pktlen = 0;
-    curr_txbd = next_txbd;
-    --num_bd;
-  }
-
-  --curr_txbd;
-  curr_txbd->next = NULL;
-  txch->inactive_tail = curr_txbd;
+  txch->head = 0;
+  txch->tail = 0;
+  txch->active = false;
+  txch->bds = (volatile struct emac_tx_bd *)nf_state->emac_ctrl_ram;
+  memset(RTEMS_DEVOLATILE(struct emac_tx_bd *, txch->bds), 0x0, sizeof(*txch->bds) * EMAC_TX_BD_COUNT);
 
   /* Initialize the descriptors for the RX channel */
-  curr_rxbd = (volatile struct emac_rx_bd *)(curr_txbd + 1);
+  curr_rxbd = (volatile struct emac_rx_bd *)(&txch->bds[EMAC_TX_BD_COUNT]);
   head_rxbd = curr_rxbd;
   rxch->active_head = head_rxbd;
 
@@ -664,127 +642,84 @@ tms570_eth_send(struct netif *netif, struct pbuf *p)
 static err_t
 tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
 {
-  struct pbuf *q;
-  struct txch *txch;
-  struct tms570_netif_state *nf_state;
-  unsigned int pktlen;
-  unsigned int padlen = 0;
-  volatile struct emac_tx_bd *curr_bd;
-  volatile struct emac_tx_bd *packet_head;
-  volatile struct emac_tx_bd *packet_tail;
+  struct tms570_netif_state *nf_state = (struct tms570_netif_state *)netif->state;
+  struct txch *txch = &(nf_state->txch);
 
-  nf_state = (struct tms570_netif_state *)netif->state;
-  txch = &(nf_state->txch);
-
-  /* Get the first BD that is unused and will be used for TX */
-  curr_bd = txch->inactive_head;
-  if (curr_bd == NULL)
-    goto error_out_of_descriptors;
-
-  packet_head = curr_bd;
-  packet_tail = curr_bd;
-
-  /* adjust the packet length if less than minimum required */
-  pktlen = pbuf->tot_len;
+  /* Adjust the packet length if less than minimum required */
+  size_t pktlen = pbuf->tot_len;
+  size_t padlen;
   if (pktlen < MIN_PKT_LEN) {
     padlen = MIN_PKT_LEN - pktlen;
     pktlen = MIN_PKT_LEN;
-  }
-
-  /* First 'part' of packet flags */
-  curr_bd->flags_pktlen = tms570_eth_swap(pktlen | EMAC_DSC_FLAG_SOP |
-                          EMAC_DSC_FLAG_OWNER);
-
-  /* Copy pbuf information into TX BDs --
-   * remember that the pbuf for a single packet might be chained!
-   */
-  uint32_t desc_count = 0;
-  for (q = pbuf; q != NULL; q = q->next) {
-    if (curr_bd == NULL)
-      goto error_out_of_descriptors;
-
-    // FIXME why works with pk()?
-    //pk("TB %08x %08x %u %u\n", pbuf, q->payload, q->len, ntohl(*(uint32_t*)((uint8_t*)q->payload + 0x26)));
-    rtems_cache_flush_multiple_data_lines(q->payload, q->len);
-    curr_bd->bufptr = tms570_eth_swap_bufptr(q->payload);
-    curr_bd->bufoff_len = tms570_eth_swap(q->len & 0xFFFF);
-
-    /* This is an extra field that is not par of the in-HW BD.
-     * This is used when freeing the pbuf after the TX processing
-     * is done in EMAC
-     */
-    curr_bd->pbuf = pbuf;
-    packet_tail = curr_bd;
-    curr_bd = tms570_eth_swap_txp(curr_bd->next);
-    ++desc_count;
-  }
-  if (padlen) {
-    if (curr_bd == NULL)
-      goto error_out_of_descriptors;
-
-    /* If the ETHERNET packet is smaller than 64 bytes, it has
-     * to be padded. We need some data and do not want to leak
-     * random memory. Reuse IP and possibly TCP/UDP header
-     * of given frame as padding
-     */
-    //pk("TP %08x %u\n", pbuf, padlen);
-    curr_bd->bufptr = packet_head->bufptr;
-    curr_bd->bufoff_len = tms570_eth_swap(padlen);
-    curr_bd->pbuf = pbuf;
-    packet_tail = curr_bd;
-    curr_bd = tms570_eth_swap_txp(curr_bd->next);
-    ++desc_count;
-  }
-  /* Indicate the end of the packet */
-  packet_tail->next = NULL;
-  packet_tail->flags_pktlen |= tms570_eth_swap(EMAC_DSC_FLAG_EOP);
-  packet_tail->flags_pktlen;
-
-  txch->active += desc_count;
-  txch->inactive -= desc_count;
-  txch->inactive_head = curr_bd;
-  if (curr_bd == NULL)
-    txch->inactive_tail = curr_bd;
-
-  sys_arch_data_sync_barier();
-
-  if (txch->active_tail == NULL) {
-    txch->active_head = packet_head;
-	    //pk("TN %u %u %08x\n", txch->active, txch->inactive, packet_head->pbuf->payload);
-    tms570_eth_hw_set_TX_HDP(nf_state, packet_head);
   } else {
-    uint32_t flags_pktlen;
+    padlen = 0;
+  }
 
-    /* Chain the bd's. If the DMA engine already reached the
-     * end of the chain, the EOQ will be set. In that case,
-     * the HDP shall be written again.
-     */
-    curr_bd = txch->active_tail;
-    curr_bd->next = tms570_eth_swap_txp(packet_head);
+  size_t head = txch->head;
+  size_t next = (head + 1) % EMAC_TX_BD_COUNT;
+  size_t tail = txch->tail;
+  struct pbuf *q = pbuf;
+  u32_t flags_pktlen = pktlen | EMAC_DSC_FLAG_SOP | EMAC_DSC_FLAG_OWNER;
+  volatile struct emac_tx_bd *bd_sof = &txch->bds[head];
+  volatile struct emac_tx_bd *bd = bd_sof;
+  struct pbuf *bd_pbuf = pbuf;
+
+  while (q != NULL && next != tail) {
+    volatile struct emac_tx_bd *bd_next = &txch->bds[next];
+
+    rtems_cache_flush_multiple_data_lines(q->payload, q->len);
+    bd = &txch->bds[head];
+    bd->flags_pktlen = tms570_eth_swap(flags_pktlen);
+    bd->bufptr = tms570_eth_swap_bufptr(q->payload);
+    bd->bufoff_len = tms570_eth_swap(q->len & 0xFFFF);
+    bd = tms570_eth_swap_txp(bd_next);
+    bd->pbuf = bd_pbuf;
+
+    bd_pbuf = NULL;
+    flags_pktlen = EMAC_DSC_FLAG_OWNER;
+    q = q->next;
+    head = next;
+    next = (next + 1) % EMAC_TX_BD_COUNT;
+  }
+
+  if (padlen > 0 && next != tail) {
+    bd = &txch->bds[head];
+    bd->bufptr = tms570_eth_swap_bufptr(pbuf->payload);
+    bd->bufoff_len = tms570_eth_swap(padlen);
+    bd->pbuf = NULL;
+
+    head = next;
+    next = (next + 1) % EMAC_TX_BD_COUNT;
+  }
+
+  /* Enough descriptors? */
+  if (next == tail) {
+    pbuf_free(pbuf);
+    return ERR_IF;
+  }
+
+  bd->flags_pktlen = tms570_eth_swap(flags_pktlen | EMAC_DSC_FLAG_EOP);
+  bd->next = NULL;
+  bd->next;
   sys_arch_data_sync_barier();
 
-    /* We were too slow and the EMAC already read the
-     * 'pNext = NULL' of the former txch->active_tail. In this
-     * case the transmission stopped and we need to write the
-     * pointer to newly added BDs to the TX HDP
-     */
-    flags_pktlen = tms570_eth_swap(curr_bd->flags_pktlen);
+  if (txch->active) {
+    volatile struct emac_tx_bd *bd_tail = &txch->bds[(txch->head - 1) % EMAC_TX_BD_COUNT];
+    bd_tail->next = tms570_eth_swap_txp(bd_sof);
+    sys_arch_data_sync_barier();
+
+    flags_pktlen = tms570_eth_swap(bd_tail->flags_pktlen);
     if ((flags_pktlen & (EMAC_DSC_FLAG_EOQ | EMAC_DSC_FLAG_OWNER)) == EMAC_DSC_FLAG_EOQ) {
-	    //pk("TRQ %u %u %08x %08x\n", txch->active, txch->inactive, flags_pktlen, packet_head->pbuf->payload);
-      curr_bd->flags_pktlen = tms570_eth_swap(flags_pktlen & ~EMAC_DSC_FLAG_EOQ);
-      tms570_eth_hw_set_TX_HDP(nf_state, packet_head);
-    } else {
-	    pk("TC %u %u %08x\n", txch->active, txch->inactive, flags_pktlen);
+      bd_tail->flags_pktlen = tms570_eth_swap(flags_pktlen & ~EMAC_DSC_FLAG_EOQ);
+      tms570_eth_hw_set_TX_HDP(nf_state, bd_sof);
     }
+  } else {
+    tms570_eth_hw_set_TX_HDP(nf_state, bd_sof);
   }
-  txch->active_tail = packet_tail;
 
+  txch->active = true;
+  txch->head = next;
   return ERR_OK;
-
-error_out_of_descriptors:
-  //pk("TOOD\n");
-  pbuf_free(pbuf);
-  return ERR_IF;
 }
 
 /* EMAC Packet Buffer Sizes and Placement */
