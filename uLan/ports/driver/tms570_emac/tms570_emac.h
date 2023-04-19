@@ -76,7 +76,6 @@ struct rxch{
 struct txch {
   size_t head;
   size_t tail;
-  bool active;
   volatile struct emac_tx_bd *bds;
 };
 
