@@ -47,7 +47,7 @@
 #define LWIP_CALLBACK_API 1
 
 #define MEM_ALIGNMENT           64
-#define MEM_SIZE                128 * 1024
+#define MEM_SIZE                96 * 1024
 #define MEMP_NUM_PBUF           32
 #define MEMP_NUM_NETCONN        16
 #define MEMP_NUM_UDP_PCB        16
@@ -55,9 +55,8 @@
 #define MEMP_NUM_TCP_PCB_LISTEN 8
 #define MEMP_NUM_TCP_SEG        256
 
-#define PBUF_POOL_SIZE          32
-#define PBUF_POOL_BUFSIZE       1600
-#define PBUF_LINK_HLEN          16
+#define PBUF_POOL_SIZE          64
+#define PBUF_POOL_BUFSIZE       (1500 + PBUF_LINK_HLEN)
 
 #define ARP_TABLE_SIZE 10
 #define ARP_QUEUEING 1

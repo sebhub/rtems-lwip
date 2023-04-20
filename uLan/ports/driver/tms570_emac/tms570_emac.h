@@ -58,28 +58,49 @@ struct emac_rx_bd {
 
   /* helper to know which pbuf this rx bd corresponds to */
   struct pbuf *pbuf;
-  volatile struct emac_rx_bd *ring_next;
-  volatile struct emac_rx_bd *ring_prev;
 };
 
 /**
  * Helper struct to hold the data used to operate on a particular
  * receive channel
  */
-struct rxch{
-  volatile struct emac_rx_bd *active_head;
-};
+struct rxch {
+  /*
+   * This is the index of the BD containing the least recently received
+   * Ethernet frame not handed over to the stack.
+   */
+  size_t head;
 
-#define EMAC_TX_BD_COUNT 128
+  volatile struct emac_rx_bd *bds;
+};
 
 /**
  * Helper struct to hold the data used to operate on a particular
  * transmit channel
  */
 struct txch {
+  /*
+   * This is the index of the BD for the start of the next Ethernet frame to
+   * transmit.
+   */
   size_t head;
+
+  /*
+   * This is the index of the BD containing the Ethernet frame least recently
+   * handed over to the EMAC.
+   */
   size_t tail;
+
   volatile struct emac_tx_bd *bds;
+};
+
+#define EMAC_RX_BD_COUNT LWIP_MIN((PBUF_POOL_SIZE / 2), 128)
+
+#define EMAC_TX_BD_COUNT 128
+
+struct cppi_ram {
+  struct emac_rx_bd rx_bds[EMAC_RX_BD_COUNT];
+  struct emac_tx_bd tx_bds[EMAC_TX_BD_COUNT];
 };
 
 /**
@@ -94,7 +115,7 @@ struct tms570_netif_state {
 
   /* EMAC controller base address */
   volatile tms570_emacc_t *emac_ctrl_base;
-  volatile u32_t emac_ctrl_ram;
+  struct cppi_ram *emac_ctrl_ram;
 
   /* MDIO module control */
   tiMDIOControl mdio;
