@@ -124,25 +124,18 @@ static bool initialized = false;
 #define pk(...) do { rtems_interrupt_level level; rtems_interrupt_disable(level); printk(__VA_ARGS__); rtems_interrupt_enable(level); } while (0)
 
 /*private?*/
-#if !defined(__TI_COMPILER_VERSION__)
-static
-#endif /*__TI_COMPILER_VERSION__*/
-SYS_IRQ_HANDLER_FNC(tms570_eth_irq);
 static void tms570_eth_hw_set_RX_HDP(struct tms570_netif_state *nf_state, volatile struct emac_rx_bd *new_head);
 static void tms570_eth_hw_set_TX_HDP(struct tms570_netif_state *nf_state, volatile struct emac_tx_bd *new_head);
 static void tms570_eth_hw_set_hwaddr(struct tms570_netif_state *nf_state, uint8_t *mac_addr);
-static void tms570_eth_process_irq_rx(void *arg);
-static void tms570_eth_process_irq_tx(void *arg);
-static void tms570_eth_process_irq_request(void *argument);
-static void tms570_eth_process_irq(void *argument);
+static SYS_IRQ_HANDLER_FNC(tms570_eth_process_irq_rx);
+static SYS_IRQ_HANDLER_FNC(tms570_eth_process_irq_tx);
 struct netif *tms570_eth_get_netif(uint32_t instance_number);
 static err_t tms570_eth_send(struct netif *netif, struct pbuf *p);
 static err_t tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf);
 static err_t tms570_eth_init_hw(struct tms570_netif_state *nf_state);
 static err_t tms570_eth_init_hw_post_init(struct tms570_netif_state *nf_state);
-static err_t tms570_eth_init_interrupt(struct tms570_netif_state *nf_state);
+static err_t tms570_eth_init_interrupt(struct netif *netif);
 static err_t tms570_eth_init_find_PHY(struct tms570_netif_state *nf_state);
-static err_t tms570_eth_init_control_structures(struct netif *netif);
 static void tms570_eth_init_netif_fill(struct netif *netif);
 static void tms570_eth_init_buffer_descriptors(struct tms570_netif_state *nf_state);
 static void tms570_eth_init_set_pinmux();
@@ -228,27 +221,6 @@ tms570_eth_init_netif_fill(struct netif *netif)
   netif->flags = NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP | NETIF_FLAG_LINK_UP;
 }
 
-static err_t
-tms570_eth_init_control_structures(struct netif *netif)
-{
-  err_t res;
-  sys_thread_t tx_thread_id;
-  struct tms570_netif_state *nf_state;
-
-  nf_state = netif->state;
-
-  res = sys_sem_new(&nf_state->intPend_sem, 0);
-  if (res != ERR_OK) {
-    sys_arch_printk("ERROR! semaphore creation error - 0x%08lx\n", (long)res);
-  }
-  tx_thread_id = sys_thread_new(0, tms570_eth_process_irq_request, netif, 1024, 3); //zkontrolovat priorita 0
-  if (tx_thread_id == 0) {
-    sys_arch_printk("ERROR! lwip interrupt thread not created");
-    res = !ERR_OK;
-  }
-  return res;
-}
-
 err_t
 tms570_eth_init_netif(struct netif *netif)
 {
@@ -272,13 +244,9 @@ tms570_eth_init_netif(struct netif *netif)
     tms570_eth_debug_printf("tms570_eth_init_hw: %d", retVal);
     return retVal;
   }
-  if ((retVal = tms570_eth_init_control_structures(netif)) != ERR_OK) {
-    tms570_eth_debug_printf("tms570_eth_init_control_structures: %d", retVal);
-    return retVal;
-  }
   tms570_eth_init_buffer_descriptors(nf_state);
   tms570_eth_hw_set_hwaddr(nf_state, netif->hwaddr);
-  tms570_eth_init_interrupt(nf_state);
+  tms570_eth_init_interrupt(netif);
   if ((retVal = tms570_eth_init_hw_post_init(nf_state)) != ERR_OK) {
     tms570_eth_debug_printf("tms570_eth_init_hw_post_init: %d", retVal);
     return retVal;
@@ -291,19 +259,19 @@ tms570_eth_init_netif(struct netif *netif)
 }
 
 static err_t
-tms570_eth_init_interrupt(struct tms570_netif_state *nf_state)
+tms570_eth_init_interrupt(struct netif *netif)
 {
   int res;
 
-  res = sys_request_irq(TMS570_IRQ_EMAC_TX, tms570_eth_irq,
-                        0, "emac_tx", nf_state);
+  res = sys_request_irq(TMS570_IRQ_EMAC_TX, tms570_eth_process_irq_tx,
+                        0, "emac_tx", netif);
   if (res < 0) {
     sys_arch_printk("Failed to install tx handler\n");
     return ERR_IF;
   }
 
-  res = sys_request_irq(TMS570_IRQ_EMAC_RX, tms570_eth_irq,
-                        0, "emac_rx", nf_state);
+  res = sys_request_irq(TMS570_IRQ_EMAC_RX, tms570_eth_process_irq_rx,
+                        0, "emac_rx", netif);
   if (res < 0) {
     sys_arch_printk("Failed to install rx handler\n");
     return ERR_IF;
@@ -770,15 +738,11 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
   #define EMAC_NUM_TX_FRAG    2
 #endif
 
-static void
-tms570_eth_process_irq_rx(void *arg)
+static
+SYS_IRQ_HANDLER_FNC(tms570_eth_process_irq_rx)
 {
-  struct netif *netif = (struct netif *)arg;
+  struct netif *netif = (struct netif *)sys_irq_handler_get_context();
   struct tms570_netif_state *nf_state = netif->state;
-
-  rtems_interrupt_level level;
-  rtems_interrupt_disable(level);
-
   volatile struct emac_rx_bd *curr_bd = nf_state->rxch.active_head;
 
   while (true) {
@@ -846,13 +810,14 @@ tms570_eth_process_irq_rx(void *arg)
   }
 
   nf_state->rxch.active_head = curr_bd;
-  rtems_interrupt_enable(level);
+
+  EMACCoreIntAck(nf_state->emac_base, EMAC_INT_CORE0_RX);
 }
 
-static void
-tms570_eth_process_irq_tx(void *arg)
+static
+SYS_IRQ_HANDLER_FNC(tms570_eth_process_irq_tx)
 {
-  struct netif *netif = (struct netif *)arg;
+  struct netif *netif = (struct netif *)sys_irq_handler_get_context();
   struct tms570_netif_state *nf_state = netif->state;
   struct txch *txch = &(nf_state->txch);
 
@@ -891,53 +856,8 @@ tms570_eth_process_irq_tx(void *arg)
   }
 
   txch->tail = tail;
-}
 
-static void
-tms570_eth_process_irq(void *argument)
-{
-  struct netif *netif = (struct netif *)argument;
-  struct tms570_netif_state *nf_state;
-  uint32_t macints;
-
-  nf_state = netif->state;
-
-  if (nf_state == NULL)
-    return;
-
-      rtems_interrupt_level level;
-      rtems_interrupt_disable(level);
-  while (1) {
-    macints = nf_state->emac_base->MACINVECTOR;
-    if ((macints & 0xffff) == 0) {
-      break;
-    }
-    if (macints & (0xff<<16)) { //TX interrupt
-      tms570_eth_process_irq_tx(netif);
-      EMACCoreIntAck(nf_state->emac_base, EMAC_INT_CORE0_TX);
-    }
-    if (macints & (0xff<<0)) { //RX interrupt
-      tms570_eth_process_irq_rx(netif);
-      EMACCoreIntAck(nf_state->emac_base, EMAC_INT_CORE0_RX);
-    }
-  }
-  sys_arch_unmask_interrupt_source(TMS570_IRQ_EMAC_RX);
-  sys_arch_unmask_interrupt_source(TMS570_IRQ_EMAC_TX);
-      rtems_interrupt_enable(level);
-}
-
-void static
-tms570_eth_process_irq_request(void *argument)
-{
-  struct netif *netif = (struct netif *)argument;
-  struct tms570_netif_state *nf_state;
-
-  nf_state = netif->state;
-
-  for (;; ) {
-    sys_arch_sem_wait(&nf_state->intPend_sem, 0);
-    tcpip_callback((tcpip_callback_fn)tms570_eth_process_irq, netif);
-  }
+  EMACCoreIntAck(nf_state->emac_base, EMAC_INT_CORE0_TX);
 }
 
 static void
@@ -970,18 +890,6 @@ tms570_eth_hw_set_TX_HDP(struct tms570_netif_state *nf_state, volatile struct em
     nf_state->emac_base,
     (uint32_t)new_head,
     CHANNEL);
-}
-
-#if !defined(__TI_COMPILER_VERSION__)
-static
-#endif /*__TI_COMPILER_VERSION__*/
-SYS_IRQ_HANDLER_FNC(tms570_eth_irq){
-  struct tms570_netif_state *nf_state = (struct tms570_netif_state *)sys_irq_handler_get_context();
-
-  sys_arch_mask_interrupt_source(TMS570_IRQ_EMAC_RX);
-  sys_arch_mask_interrupt_source(TMS570_IRQ_EMAC_TX);
-  if (nf_state != NULL)
-    sys_sem_signal_from_ISR(&nf_state->intPend_sem);
 }
 
 #if TMS570_NETIF_DEBUG

@@ -105,12 +105,6 @@ struct tms570_netif_state {
   struct txch txch;
   struct rxch rxch;
 
-  /* Semaphores used for waking up the threads processing
-   * RX/TX packets in teh deferred manner.
-   * Semgive is called in particular RX/TX interrupt
-   */
-  sys_sem_t intPend_sem;
-
   u32_t phy_addr;
   uint32_t waitTicksForPHYAneg;
 };
