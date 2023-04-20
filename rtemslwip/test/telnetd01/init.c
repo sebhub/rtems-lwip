@@ -122,9 +122,9 @@ static rtems_task Init( rtems_task_argument argument )
 
   ip_addr_t ipaddr, netmask, gw;
 
-  IP_ADDR4( &ipaddr, 10, 0, 2, 14 );
+  IP_ADDR4( &ipaddr, 10, 27, 10, 2 );
   IP_ADDR4( &netmask, 255, 255, 255, 0 );
-  IP_ADDR4( &gw, 10, 0, 2, 3 );
+  IP_ADDR4( &gw, 10, 27, 10, 1 );
   unsigned char mac_ethernet_address[] = { 0x00, 0x0a, 0x35, 0x00, 0x22, 0x01 };
 
   ret = start_networking(
