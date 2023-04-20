@@ -106,7 +106,9 @@ static err_t tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf);
 static err_t tms570_eth_init_hw(struct tms570_netif_state *nf_state);
 static err_t tms570_eth_init_hw_post_init(struct tms570_netif_state *nf_state);
 static err_t tms570_eth_init_interrupt(struct netif *netif);
+#ifdef EMAC_ENABLE_MDIO_SUPPORT
 static err_t tms570_eth_init_find_PHY(struct tms570_netif_state *nf_state);
+#endif
 static void tms570_eth_init_netif_fill(struct netif *netif);
 static void tms570_eth_init_buffer_descriptors(struct tms570_netif_state *nf_state);
 static void tms570_eth_init_set_pinmux();
@@ -146,6 +148,7 @@ tms570_eth_init_state(void)
   nf_state->emac_base = &TMS570_EMACM;
   nf_state->emac_ctrl_base = &TMS570_EMACC;
   nf_state->emac_ctrl_ram = (struct cppi_ram *) EMAC_CTRL_RAM_BASE;
+#ifdef EMAC_ENABLE_MDIO_SUPPORT
   nf_state->mdio.base.init = TIMDIOInit;
   nf_state->mdio.base.phyAliveStatusGet = TIMDIOPhyAliveStatusGet;
   nf_state->mdio.base.phyLinkStatusGet = TIMDIOPhyLinkStatusGet;
@@ -155,6 +158,7 @@ tms570_eth_init_state(void)
   nf_state->phy_addr = DEFAULT_PHY_ADDR;
 #if !NO_SYS
   nf_state->waitTicksForPHYAneg = TICKS_PHY_AUTONEG;
+#endif
 #endif
   return nf_state;
 }
@@ -249,6 +253,8 @@ tms570_eth_init_interrupt(struct netif *netif)
   }
   return ERR_OK;
 }
+
+#ifdef EMAC_ENABLE_MDIO_SUPPORT
 static err_t
 tms570_eth_init_find_PHY(struct tms570_netif_state *nf_state)
 {
@@ -289,6 +295,7 @@ tms570_eth_init_find_PHY(struct tms570_netif_state *nf_state)
   }
   return ERR_OK;
 }
+#endif
 
 static const uint32_t tms570_eth_pin_config[] = {
   TMS570_MMR_SELECT_MII_MODE,
@@ -323,16 +330,17 @@ tms570_eth_init_set_pinmux(void)
 static err_t
 tms570_eth_init_hw(struct tms570_netif_state *nf_state)
 {
-  err_t retVal;
-
   tms570_eth_init_set_pinmux();
 
   /* Initialize EMAC control module and EMAC module */
   EMACInit(nf_state->emac_ctrl_base, nf_state->emac_base);
+
+#ifdef EMAC_ENABLE_MDIO_SUPPORT
   /* Initialize MDIO module (reset) */
   MDIOInit(&nf_state->mdio.base, 0x0, 0x0);
 
-  if ((retVal = tms570_eth_init_find_PHY(nf_state)) != ERR_OK) {
+  err_t retVal = tms570_eth_init_find_PHY(nf_state);
+  if (retVal != ERR_OK) {
     tms570_eth_debug_printf("tms570_eth_init_find_PHY: %d", retVal);
     return retVal;
   }
@@ -344,6 +352,7 @@ tms570_eth_init_hw(struct tms570_netif_state *nf_state)
                      PHY_100BASETXDUPL_m | PHY_100BASETX_m |
                      PHY_10BASETDUPL_m | PHY_10BASET_m);
   tms570_eth_debug_printf("autoneg started -- check on cable if it's connected!\r\n");
+#endif
 
   /*
    * TODO: you can implement init of receive flow control somewhere
@@ -398,6 +407,7 @@ tms570_eth_hw_set_hwaddr(struct tms570_netif_state *nf_state, uint8_t *mac_addr)
 static err_t
 tms570_eth_init_hw_post_init(struct tms570_netif_state *nf_state)
 {
+#ifdef EMAC_ENABLE_MDIO_SUPPORT
   /* 0x3FFFFFFF is for 80MHz aproximately 13s */
   uint16_t regContent;
 
@@ -434,6 +444,10 @@ tms570_eth_init_hw_post_init(struct tms570_netif_state *nf_state)
   } else {
     EMACUse100Mbps(nf_state->emac_base, false);
   }
+#else
+  EMACDuplexSet(nf_state->emac_base, 1);
+  EMACUse100Mbps(nf_state->emac_base, true);
+#endif
 
   /* enable hostpend interrupts in emac module */
   nf_state->emac_base->MACINTMASKSET |= TMS570_EMACM_MACINTMASKSET_HOSTMASK;

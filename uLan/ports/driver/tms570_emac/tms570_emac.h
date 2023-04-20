@@ -106,6 +106,8 @@ struct cppi_ram {
   uint8_t padding[EMAC_MIN_PKT_LEN];
 };
 
+//#define EMAC_ENABLE_MDIO_SUPPORT
+
 /**
  * Helper struct to hold private data used to operate the ethernet interface.
  */
@@ -126,11 +128,13 @@ struct tms570_netif_state {
   struct txch txch;
   struct rxch rxch;
 
+#ifdef EMAC_ENABLE_MDIO_SUPPORT
   /* MDIO module control */
   tiMDIOControl mdio;
 
   u32_t phy_addr;
   uint32_t waitTicksForPHYAneg;
+#endif
 };
 
 /********************************************** End of Statistics **********************************************/
