@@ -598,12 +598,14 @@ tms570_eth_send(struct netif *netif, struct pbuf *p)
 {
   err_t retVal = ERR_OK;
 
+#if 0
   struct tms570_netif_state *nf_state = (struct tms570_netif_state *)netif->state;
   struct txch *txch = &(nf_state->txch);
   while (txch->head != txch->tail) {
     RTEMS_COMPILER_MEMORY_BARRIER();
     rtems_task_wake_after(1);
   }
+#endif
 
   SYS_ARCH_DECL_PROTECT(lev);
 
@@ -662,34 +664,48 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
   }
 
   size_t head = txch->head;
+  size_t sop = head;
   size_t next = (head + 1) % EMAC_TX_BD_COUNT;
   size_t tail = txch->tail;
   struct pbuf *q = pbuf;
   u32_t flags_pktlen = pktlen | EMAC_DSC_FLAG_SOP | EMAC_DSC_FLAG_OWNER;
-  volatile struct emac_tx_bd *bd_sop = &txch->bds[head];
-  volatile struct emac_tx_bd *bd = bd_sop;
+  volatile struct emac_tx_bd *bd = &txch->bds[head];
+  volatile struct emac_tx_bd *bd_sop = bd;
+  volatile struct emac_tx_bd *bd_next;
   struct pbuf *bd_pbuf = pbuf;
 
-  while (q != NULL && next != tail) {
-    volatile struct emac_tx_bd *bd_next = &txch->bds[next];
+  while (true) {
+    bd_next = &txch->bds[next];
 
     rtems_cache_flush_multiple_data_lines(q->payload, q->len);
-    bd = &txch->bds[head];
     bd->flags_pktlen = tms570_eth_swap(flags_pktlen);
     bd->bufptr = tms570_eth_swap_bufptr(q->payload);
     bd->bufoff_len = tms570_eth_swap(q->len & 0xFFFF);
     bd->next = tms570_eth_swap_txp(bd_next);
     bd->pbuf = bd_pbuf;
 
-    bd_pbuf = NULL;
-    flags_pktlen = EMAC_DSC_FLAG_OWNER;
-    q = q->next;
     head = next;
     next = (next + 1) % EMAC_TX_BD_COUNT;
+
+    if (next == tail) {
+      break;
+    }
+
+    q = q->next;
+
+    if (q == NULL) {
+      break;
+    }
+
+    bd = bd_next;
+    bd_pbuf = NULL;
+    flags_pktlen = EMAC_DSC_FLAG_OWNER;
   }
 
   if (padlen > 0 && next != tail) {
-    bd = &txch->bds[head];
+    flags_pktlen = EMAC_DSC_FLAG_OWNER;
+
+    bd = bd_next;
     bd->bufptr = tms570_eth_swap_bufptr(pbuf->payload);
     bd->bufoff_len = tms570_eth_swap(padlen);
     bd->pbuf = NULL;
@@ -709,8 +725,10 @@ tms570_eth_send_raw(struct netif *netif, struct pbuf *pbuf)
   bd->next;
   sys_arch_data_sync_barier();
 
-  if (txch->head != tail) {
-    volatile struct emac_tx_bd *bd_tail = &txch->bds[(txch->head - 1) % EMAC_TX_BD_COUNT];
+  bd_sop->eop_increment = ((head - sop) % EMAC_TX_BD_COUNT) - 1;
+
+  if (sop != tail) {
+    volatile struct emac_tx_bd *bd_tail = &txch->bds[(sop - 1) % EMAC_TX_BD_COUNT];
     bd_tail->next = tms570_eth_swap_txp(bd_sop);
     sys_arch_data_sync_barier();
 
@@ -850,22 +868,24 @@ tms570_eth_process_irq_tx(void *arg)
       break;
     }
 
-    tail = (tail + 1) % EMAC_TX_BD_COUNT;
-
-    while ((flags_pktlen & EMAC_DSC_FLAG_EOP) == 0) {
-      bd = &txch->bds[tail];
-      flags_pktlen = tms570_eth_swap(bd->flags_pktlen);
-      tail = (tail + 1) % EMAC_TX_BD_COUNT;
-    }
+    tail = (tail + bd->eop_increment) % EMAC_TX_BD_COUNT;
+    bd = &txch->bds[tail];
+    flags_pktlen = tms570_eth_swap(bd->flags_pktlen);
 
     EMACTxCPWrite(nf_state->emac_base, CHANNEL, (uint32_t)bd);
     pbuf_free(bd_sof->pbuf);
     LINK_STATS_INC(link.xmit);
 
     if ((flags_pktlen & EMAC_DSC_FLAG_EOQ) != 0) {
-      // TODO
+      bd = &txch->bds[(tail + 1) % EMAC_TX_BD_COUNT];
+      flags_pktlen = tms570_eth_swap(bd->flags_pktlen);
+
+      if ((flags_pktlen & EMAC_DSC_FLAG_OWNER) != 0) {
+        tms570_eth_hw_set_TX_HDP(nf_state, bd);
+      }
     }
 
+    tail = (tail + 1) % EMAC_TX_BD_COUNT;
     bd = &txch->bds[tail];
     bd_sof = bd;
   }

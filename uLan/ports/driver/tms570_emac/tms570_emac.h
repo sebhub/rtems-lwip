@@ -44,6 +44,9 @@ struct emac_tx_bd {
 
   /* helper to know which pbuf this tx bd corresponds to */
   struct pbuf *pbuf;
+
+  /* The EOP increment is used to get from the SOP BD to the EOP BD */
+  size_t eop_increment;
 };
 
 /* EMAC RX Buffer descriptor data structure */
