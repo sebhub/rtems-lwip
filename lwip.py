@@ -87,7 +87,7 @@ def build(bld):
 
     bld(features='c',
         target='lwip_obj',
-        cflags='-g -Wall -O0',
+        cflags='-g -Wall -O2',
         includes=' '.join(lwip_obj_incl),
         source=source_files,
         )
@@ -98,13 +98,13 @@ def build(bld):
 
     bld(features='c',
         target='driver_obj',
-        cflags='-g -Wall -O0',
+        cflags='-g -Wall -O2',
         includes=' '.join(drv_obj_incl),
         source=driver_source,
         )
     bld(features='c cstlib',
         target='lwip',
-        cflags='-g -Wall -O0',
+        cflags='-g -Wall -O2',
         use=['lwip_obj', 'driver_obj'])
     bld.install_files("${PREFIX}/" + arch_lib_path, ["liblwip.a"])
 
@@ -131,7 +131,7 @@ def build(bld):
     bld.program(features='c',
                 target='networking01.exe',
                 source='rtemslwip/test/networking01/sample_app.c',
-                cflags='-g -Wall -O0',
+                cflags='-g -Wall -O2',
                 use='lwip',
                 lib=['rtemscpu', 'rtemsbsp', 'rtemstest', 'lwip'],
                 includes=' '.join(test_app_incl))
@@ -145,7 +145,7 @@ def build(bld):
                 target='telnetd01.exe',
                 source='rtemslwip/test/telnetd01/init.c',
                 use='telnetd lwip rtemstest ftpd',
-                cflags='-g -Wall -O0',
+                cflags='-g -Wall -O2',
                 includes=' '.join(test_app_incl))
 
 
