@@ -753,48 +753,60 @@ SYS_IRQ_HANDLER_FNC(tms570_eth_process_irq_rx)
   EMACCoreIntAck(nf_state->emac_base, EMAC_INT_CORE0_RX);
 }
 
-static
-SYS_IRQ_HANDLER_FNC(tms570_eth_process_irq_tx)
+static void tms570_eth_recycle_tx_bds(struct tms570_netif_state *nf_state)
 {
-  struct netif *netif = (struct netif *)sys_irq_handler_get_context();
-  struct tms570_netif_state *nf_state = netif->state;
-
   size_t head = nf_state->txch.head;
   size_t tail = nf_state->txch.tail;
   volatile struct emac_tx_bd *bd = &nf_state->txch.bds[tail];
   volatile struct emac_tx_bd *bd_sof = bd;
 
-  while (tail != head) {
+  if (RTEMS_PREDICT_FALSE(tail == head)) {
+    return;
+  }
+
+  while (true) {
     u32_t flags_pktlen = tms570_eth_swap(bd->flags_pktlen);
 
     if ((flags_pktlen & EMAC_DSC_FLAG_OWNER) != 0) {
       break;
     }
 
-    tail = (tail + bd->eop_increment) % EMAC_TX_BD_COUNT;
-    bd = &nf_state->txch.bds[tail];
+    size_t eop = (tail + bd->eop_increment) % EMAC_TX_BD_COUNT;
+    bd = &nf_state->txch.bds[eop];
     flags_pktlen = tms570_eth_swap(bd->flags_pktlen);
 
     EMACTxCPWrite(nf_state->emac_base, CHANNEL, (uint32_t)bd);
     pbuf_free(bd_sof->pbuf);
     LINK_STATS_INC(link.xmit);
 
+    tail = (eop + 1) % EMAC_TX_BD_COUNT;
+
+    if (tail == head) {
+      break;
+    }
+
+    bd = &nf_state->txch.bds[tail];
+    bd_sof = bd;
+
     if ((flags_pktlen & EMAC_DSC_FLAG_EOQ) != 0) {
-      bd = &nf_state->txch.bds[(tail + 1) % EMAC_TX_BD_COUNT];
       flags_pktlen = tms570_eth_swap(bd->flags_pktlen);
 
       if ((flags_pktlen & EMAC_DSC_FLAG_OWNER) != 0) {
         tms570_eth_hw_set_TX_HDP(nf_state, bd);
       }
     }
-
-    tail = (tail + 1) % EMAC_TX_BD_COUNT;
-    bd = &nf_state->txch.bds[tail];
-    bd_sof = bd;
   }
 
   nf_state->txch.tail = tail;
+}
 
+static
+SYS_IRQ_HANDLER_FNC(tms570_eth_process_irq_tx)
+{
+  struct netif *netif = (struct netif *)sys_irq_handler_get_context();
+  struct tms570_netif_state *nf_state = netif->state;
+
+  tms570_eth_recycle_tx_bds(nf_state);
   EMACCoreIntAck(nf_state->emac_base, EMAC_INT_CORE0_TX);
 }
 
